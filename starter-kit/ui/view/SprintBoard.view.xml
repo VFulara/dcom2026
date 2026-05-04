@@ -1,0 +1,38 @@
+<mvc:View
+  controllerName="planning.board.controller.SprintBoard"
+  xmlns:mvc="sap.ui.core.mvc"
+  xmlns="sap.m"
+  xmlns:core="sap.ui.core"
+  displayBlock="true">
+
+  <Page id="sprintBoardPage" title="{i18n>sprintBoardTitle}" showNavButton="true" navButtonPress=".onNavToBacklog">
+    <headerContent>
+      <Button text="{i18n>newSprint}" press=".onNewSprint" type="Emphasized" icon="sap-icon://add"/>
+    </headerContent>
+
+    <dependents>
+      <Dialog id="newSprintDialog" title="{i18n>newSprintTitle}" contentWidth="400px">
+        <content>
+          <VBox class="sapUiSmallMargin">
+            <Label text="{i18n>fieldSprintName}" required="true" class="sapUiSmallMarginBottom"/>
+            <Input id="sprintName" placeholder="{i18n>sprintNamePlaceholder}" width="100%"/>
+            <Label text="{i18n>fieldStartDate}" class="sapUiSmallMarginTop sapUiSmallMarginBottom"/>
+            <DatePicker id="sprintStartDate" valueFormat="yyyy-MM-dd" displayFormat="mediumDate" width="100%"/>
+            <Label text="{i18n>fieldEndDate}" class="sapUiSmallMarginTop sapUiSmallMarginBottom"/>
+            <DatePicker id="sprintEndDate" valueFormat="yyyy-MM-dd" displayFormat="mediumDate" width="100%"/>
+          </VBox>
+        </content>
+        <beginButton>
+          <Button text="{i18n>create}" press=".onCreateSprint" type="Emphasized"/>
+        </beginButton>
+        <endButton>
+          <Button text="{i18n>cancel}" press=".onCancelSprintDialog"/>
+        </endButton>
+      </Dialog>
+    </dependents>
+
+    <content>
+      <IconTabBar id="sprintTabBar" class="sapUiNoContentPadding" stretchContentHeight="true"/>
+    </content>
+  </Page>
+</mvc:View>

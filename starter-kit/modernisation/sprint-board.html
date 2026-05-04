@@ -1,0 +1,260 @@
+<!-- MODERNISATION TARGET: This wireframe shows the React + UI5 Web Components target for Phase 2 -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Planning Board — Sprint Board (Modernisation Target)</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: linear-gradient(135deg, #0a0e27 0%, #1a0533 40%, #0d1f3c 100%);
+    --glass-card: rgba(255,255,255,0.08);
+    --glass-sidebar: rgba(255,255,255,0.05);
+    --glass-border: rgba(255,255,255,0.15);
+    --glass-border-soft: rgba(255,255,255,0.1);
+    --text-primary: rgba(255,255,255,0.92);
+    --text-secondary: rgba(255,255,255,0.55);
+    --accent: #6366f1;
+    --accent-glass: rgba(99,102,241,0.8);
+    --c-critical: #ef4444;
+    --c-high: #f97316;
+    --c-medium: #3b82f6;
+    --c-low: #22c55e;
+    --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    --font: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+    --radius: 16px;
+  }
+
+  body { font-family: var(--font); background: var(--bg); min-height: 100vh; color: var(--text-primary); display: flex; overflow: hidden; }
+
+  .sidebar { width: 240px; flex-shrink: 0; background: var(--glass-sidebar); backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px); border-right: 1px solid var(--glass-border-soft); display: flex; flex-direction: column; padding: 24px 0; height: 100vh; }
+  .sidebar-logo { display: flex; align-items: center; gap: 10px; padding: 0 20px 24px; border-bottom: 1px solid var(--glass-border-soft); }
+  .logo-icon { width: 32px; height: 32px; background: var(--accent-glass); backdrop-filter: blur(10px); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+  .project-name { font-size: 14px; font-weight: 600; }
+  .project-sub { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+  .nav-section { flex: 1; padding: 16px 0; }
+  .nav-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-secondary); padding: 0 20px 8px; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 20px; cursor: pointer; transition: var(--transition); color: var(--text-secondary); font-size: 13px; text-decoration: none; }
+  .nav-item:hover { background: rgba(255,255,255,0.06); color: var(--text-primary); }
+  .nav-item.active { background: rgba(99,102,241,0.15); color: var(--accent); border-left: 2px solid var(--accent); }
+  .nav-item .nav-icon { width: 16px; text-align: center; font-size: 14px; }
+  .sidebar-user { padding: 16px 20px; border-top: 1px solid var(--glass-border-soft); display: flex; align-items: center; gap: 10px; }
+  .user-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--accent-glass); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; }
+  .user-name { font-size: 12px; font-weight: 600; }
+  .user-role { font-size: 10px; color: var(--text-secondary); }
+
+  .main { flex: 1; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+  .header { display: flex; align-items: center; justify-content: space-between; padding: 16px 28px; background: rgba(255,255,255,0.03); border-bottom: 1px solid var(--glass-border-soft); backdrop-filter: blur(20px); }
+  .breadcrumb { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary); }
+  .breadcrumb .sep { color: rgba(255,255,255,0.25); }
+  .breadcrumb .current { color: var(--text-primary); font-weight: 500; }
+  .sprint-chip { background: rgba(99,102,241,0.2); border: 1px solid rgba(99,102,241,0.4); border-radius: 20px; padding: 4px 12px; font-size: 11px; color: #a5b4fc; margin-left: 8px; }
+  .header-actions { display: flex; gap: 10px; align-items: center; }
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 10px; font-size: 13px; font-weight: 500; cursor: pointer; transition: var(--transition); border: none; font-family: var(--font); }
+  .btn-primary { background: var(--accent-glass); backdrop-filter: blur(10px); color: #fff; }
+  .btn-primary:hover { background: var(--accent); }
+  .btn-ghost { background: rgba(255,255,255,0.06); border: 1px solid var(--glass-border); color: var(--text-primary); }
+
+  .content { flex: 1; overflow: hidden; padding: 28px; display: flex; flex-direction: column; }
+  .content-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+  .content-title { font-size: 20px; font-weight: 600; }
+
+  /* Kanban board */
+  .kanban-board { display: flex; gap: 16px; flex: 1; overflow-x: auto; align-items: flex-start; padding-bottom: 8px; }
+
+  .kanban-col {
+    width: 260px;
+    flex-shrink: 0;
+    background: var(--glass-card);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .col-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--glass-border-soft);
+  }
+
+  .col-title { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+  .col-count {
+    background: rgba(255,255,255,0.1);
+    border: 1px solid var(--glass-border);
+    border-radius: 10px;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .col-body { padding: 12px; display: flex; flex-direction: column; gap: 8px; min-height: 60px; }
+
+  .col-empty {
+    border: 1px dashed rgba(255,255,255,0.15);
+    border-radius: 10px;
+    padding: 20px;
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  /* Story card */
+  .story-card {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid var(--glass-border-soft);
+    border-left: 3px solid transparent;
+    border-radius: 12px;
+    padding: 12px 14px;
+    cursor: pointer;
+    transition: var(--transition);
+    position: relative;
+  }
+  .story-card:hover { background: rgba(255,255,255,0.1); transform: translateY(-1px); }
+  .story-card.critical { border-left-color: var(--c-critical); }
+  .story-card.high     { border-left-color: var(--c-high); }
+  .story-card.medium   { border-left-color: var(--c-medium); }
+  .story-card.low      { border-left-color: var(--c-low); }
+
+  .card-title { font-size: 12px; font-weight: 500; line-height: 1.4; margin-bottom: 8px; }
+
+  .card-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 6px; }
+  .card-assignee { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-secondary); }
+  .mini-avatar { width: 18px; height: 18px; border-radius: 50%; background: rgba(99,102,241,0.5); display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; color: #fff; }
+  .card-points { background: rgba(255,255,255,0.1); border: 1px solid var(--glass-border); border-radius: 6px; padding: 2px 7px; font-size: 10px; font-weight: 700; }
+</style>
+</head>
+<body>
+
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-icon">📋</div>
+    <div><div class="project-name">Planning Board</div><div class="project-sub">Sprint 2 — Core Features</div></div>
+  </div>
+  <div class="nav-section">
+    <div class="nav-label">Planning</div>
+    <a class="nav-item" href="index.html"><span class="nav-icon">≡</span> Backlog</a>
+    <a class="nav-item active" href="sprint-board.html"><span class="nav-icon">⬜</span> Board</a>
+    <a class="nav-item" href="releases.html"><span class="nav-icon">🏷</span> Releases</a>
+    <a class="nav-item" href="sprint-analytics.html"><span class="nav-icon">📊</span> Analytics</a>
+  </div>
+  <div class="sidebar-user">
+    <div class="user-avatar">CA</div>
+    <div><div class="user-name">Carol Aspen</div><div class="user-role">Developer</div></div>
+  </div>
+</nav>
+
+<div class="main">
+  <header class="header">
+    <div class="breadcrumb">
+      <span>Planning Board</span>
+      <span class="sep">/</span>
+      <span class="current">Board</span>
+      <span class="sprint-chip">Sprint 2 · Jan 20 – Jan 31</span>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-primary">Complete Sprint</button>
+    </div>
+  </header>
+
+  <div class="content">
+    <div class="content-header">
+      <div class="content-title">Sprint Board</div>
+    </div>
+
+    <div class="kanban-board">
+      <!-- To Do -->
+      <div class="kanban-col">
+        <div class="col-header"><span class="col-title">To Do</span><span class="col-count">2</span></div>
+        <div class="col-body">
+          <div class="story-card medium">
+            <div class="card-title">Add totalPoints function</div>
+            <div class="card-footer">
+              <div class="card-assignee"><div class="mini-avatar">AL</div> alice</div>
+              <span class="card-points">2 pts</span>
+            </div>
+          </div>
+          <div class="story-card medium">
+            <div class="card-title">Add priority ordering</div>
+            <div class="card-footer">
+              <div class="card-assignee"><div class="mini-avatar">BO</div> bob</div>
+              <span class="card-points">2 pts</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- In Progress -->
+      <div class="kanban-col">
+        <div class="col-header"><span class="col-title">In Progress</span><span class="col-count">2</span></div>
+        <div class="col-body">
+          <div class="story-card high">
+            <div class="card-title">Build Backlog UI</div>
+            <div class="card-footer">
+              <div class="card-assignee"><div class="mini-avatar">CA</div> carol</div>
+              <span class="card-points">8 pts</span>
+            </div>
+          </div>
+          <div class="story-card high">
+            <div class="card-title">Build Sprint Board UI</div>
+            <div class="card-footer">
+              <div class="card-assignee"><div class="mini-avatar">CA</div> carol</div>
+              <span class="card-points">8 pts</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- In Review -->
+      <div class="kanban-col">
+        <div class="col-header"><span class="col-title">In Review</span><span class="col-count">0</span></div>
+        <div class="col-body">
+          <div class="col-empty">Drop stories here</div>
+        </div>
+      </div>
+
+      <!-- Done -->
+      <div class="kanban-col">
+        <div class="col-header"><span class="col-title">Done</span><span class="col-count">4</span></div>
+        <div class="col-body">
+          <div class="story-card high">
+            <div class="card-title">Set up project structure</div>
+            <div class="card-footer">
+              <div class="card-assignee"><div class="mini-avatar">AL</div> alice</div>
+              <span class="card-points">3 pts</span>
+            </div>
+          </div>
+          <div class="story-card high">
+            <div class="card-title">Create Stories entity</div>
+            <div class="card-footer">
+              <div class="card-assignee"><div class="mini-avatar">BO</div> bob</div>
+              <span class="card-points">5 pts</span>
+            </div>
+          </div>
+          <div class="story-card medium">
+            <div class="card-title">Create Sprints entity</div>
+            <div class="card-footer">
+              <div class="card-assignee"><div class="mini-avatar">AL</div> alice</div>
+              <span class="card-points">3 pts</span>
+            </div>
+          </div>
+          <div class="story-card high">
+            <div class="card-title">Implement OData service</div>
+            <div class="card-footer">
+              <div class="card-assignee"><div class="mini-avatar">BO</div> bob</div>
+              <span class="card-points">5 pts</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

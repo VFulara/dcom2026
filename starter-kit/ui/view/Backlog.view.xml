@@ -1,0 +1,126 @@
+<mvc:View
+  controllerName="planning.board.controller.Backlog"
+  xmlns:mvc="sap.ui.core.mvc"
+  xmlns="sap.m"
+  xmlns:core="sap.ui.core"
+  displayBlock="true">
+
+  <Page title="{i18n>backlogTitle}">
+    <headerContent>
+      <Button text="{i18n>navToSprints}" press=".onNavToSprints" type="Emphasized"/>
+      <Button text="{i18n>navToReleases}" press=".onNavToReleases"/>
+    </headerContent>
+
+    <subHeader>
+      <Bar>
+        <contentLeft>
+          <SearchField id="searchField" width="320px" placeholder="{i18n>searchPlaceholder}"
+            search=".onSearch" liveChange=".onSearch"/>
+          <Select id="filterStatus" change=".onFilter" class="sapUiSmallMarginBegin">
+            <core:Item key="" text="{i18n>allStatuses}"/>
+            <core:Item key="New" text="{i18n>statusNew}"/>
+            <core:Item key="In Progress" text="{i18n>statusInProgress}"/>
+            <core:Item key="In Review" text="{i18n>statusInReview}"/>
+            <core:Item key="Blocked" text="{i18n>statusBlocked}"/>
+            <core:Item key="Completed" text="{i18n>statusCompleted}"/>
+          </Select>
+          <Select id="filterPriority" change=".onFilter" class="sapUiSmallMarginBegin">
+            <core:Item key="" text="{i18n>allPriorities}"/>
+            <core:Item key="Critical" text="{i18n>priorityCritical}"/>
+            <core:Item key="High" text="{i18n>priorityHigh}"/>
+            <core:Item key="Medium" text="{i18n>priorityMedium}"/>
+            <core:Item key="Low" text="{i18n>priorityLow}"/>
+          </Select>
+          <Select id="filterSprint" change=".onFilter" class="sapUiSmallMarginBegin"
+            items="{path: 'sprints>/filterSprints', templateShareable: false}">
+            <core:Item key="{sprints>key}" text="{sprints>name}"/>
+          </Select>
+          <Button text="{i18n>clearFilters}" press=".onClearFilters"
+            icon="sap-icon://clear-filter" type="Transparent" class="sapUiSmallMarginBegin"/>
+        </contentLeft>
+      </Bar>
+    </subHeader>
+
+    <dependents>
+      <Dialog id="addStoryDialog" title="{i18n>addStoryTitle}" contentWidth="420px">
+        <content>
+          <VBox class="sapUiSmallMargin">
+            <Label text="{i18n>fieldTitle}" required="true" class="sapUiTinyMarginBottom"/>
+            <Input id="storyTitle" placeholder="{i18n>titlePlaceholder}" width="100%"/>
+            <Label text="{i18n>fieldPriority}" class="sapUiSmallMarginTop sapUiTinyMarginBottom"/>
+            <Select id="storyPriority" width="100%">
+              <core:Item key="Critical" text="{i18n>priorityCritical}"/>
+              <core:Item key="High" text="{i18n>priorityHigh}"/>
+              <core:Item key="Medium" text="{i18n>priorityMedium}"/>
+              <core:Item key="Low" text="{i18n>priorityLow}"/>
+            </Select>
+            <Label text="{i18n>fieldPoints}" class="sapUiSmallMarginTop sapUiTinyMarginBottom"/>
+            <Input id="storyPoints" type="Number" placeholder="0" width="100%"/>
+            <Label text="{i18n>fieldSprint}" class="sapUiSmallMarginTop sapUiTinyMarginBottom"/>
+            <Select id="storySprint" width="100%"
+              items="{path: 'sprints>/rowSprints', templateShareable: false}">
+              <core:Item key="{sprints>key}" text="{sprints>name}"/>
+            </Select>
+          </VBox>
+        </content>
+        <beginButton>
+          <Button text="{i18n>create}" press=".onCreateStory" type="Emphasized"/>
+        </beginButton>
+        <endButton>
+          <Button text="{i18n>cancel}" press=".onCancelDialog"/>
+        </endButton>
+      </Dialog>
+    </dependents>
+
+    <content>
+      <Table id="storiesTable"
+        items="{
+          path: '/Stories',
+          parameters: { $expand: 'sprint', $orderby: 'priority' }
+        }"
+        growing="true"
+        growingThreshold="20">
+        <headerToolbar>
+          <Toolbar>
+            <Title text="{i18n>stories}"/>
+            <ToolbarSpacer/>
+            <Button text="{i18n>addStory}" press=".onAddStory" type="Emphasized" icon="sap-icon://add"/>
+          </Toolbar>
+        </headerToolbar>
+        <columns>
+          <Column hAlign="Begin"><Text text="{i18n>colTitle}"/></Column>
+          <Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colPriority}"/></Column>
+          <Column><Text text="{i18n>colStatus}"/></Column>
+          <Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colPoints}"/></Column>
+          <Column minScreenWidth="Desktop" demandPopin="true"><Text text="{i18n>colSprint}"/></Column>
+          <Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colAssignee}"/></Column>
+        </columns>
+        <items>
+          <ColumnListItem>
+            <cells>
+              <Text text="{title}" wrapping="true"/>
+              <ObjectStatus
+                text="{priority}"
+                state="{path: 'priority', formatter: '.formatter.priorityToState'}"/>
+              <Select selectedKey="{status}" change=".onStatusChange">
+                <core:Item key="New" text="{i18n>statusNew}"/>
+                <core:Item key="In Progress" text="{i18n>statusInProgress}"/>
+                <core:Item key="In Review" text="{i18n>statusInReview}"/>
+                <core:Item key="Blocked" text="{i18n>statusBlocked}"/>
+                <core:Item key="Completed" text="{i18n>statusCompleted}"/>
+              </Select>
+              <Text text="{storyPoints}"/>
+              <Select
+                selectedKey="{= ${sprint_ID} !== null &amp;&amp; ${sprint_ID} !== undefined ? ${sprint_ID} : ''}"
+                change=".onSprintChange"
+                items="{path: 'sprints>/rowSprints', templateShareable: false}">
+                <core:Item key="{sprints>key}" text="{sprints>name}"/>
+              </Select>
+              <Text text="{assignee}"/>
+            </cells>
+          </ColumnListItem>
+        </items>
+      </Table>
+    </content>
+  </Page>
+</mvc:View>

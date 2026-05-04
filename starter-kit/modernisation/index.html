@@ -1,0 +1,489 @@
+<!-- MODERNISATION TARGET: This wireframe shows the React + UI5 Web Components target for Phase 2 -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Planning Board — Backlog (Modernisation Target)</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: linear-gradient(135deg, #0a0e27 0%, #1a0533 40%, #0d1f3c 100%);
+    --glass-card: rgba(255,255,255,0.08);
+    --glass-sidebar: rgba(255,255,255,0.05);
+    --glass-border: rgba(255,255,255,0.15);
+    --glass-border-soft: rgba(255,255,255,0.1);
+    --text-primary: rgba(255,255,255,0.92);
+    --text-secondary: rgba(255,255,255,0.55);
+    --accent: #6366f1;
+    --accent-glass: rgba(99,102,241,0.8);
+    --c-critical: #ef4444;
+    --c-high: #f97316;
+    --c-medium: #3b82f6;
+    --c-low: #22c55e;
+    --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    --font: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+    --radius: 16px;
+  }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    min-height: 100vh;
+    color: var(--text-primary);
+    display: flex;
+    overflow: hidden;
+  }
+
+  /* Sidebar */
+  .sidebar {
+    width: 240px;
+    flex-shrink: 0;
+    background: var(--glass-sidebar);
+    backdrop-filter: blur(30px);
+    -webkit-backdrop-filter: blur(30px);
+    border-right: 1px solid var(--glass-border-soft);
+    display: flex;
+    flex-direction: column;
+    padding: 24px 0;
+    height: 100vh;
+  }
+
+  .sidebar-logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 20px 24px;
+    border-bottom: 1px solid var(--glass-border-soft);
+  }
+
+  .sidebar-logo .logo-icon {
+    width: 32px;
+    height: 32px;
+    background: var(--accent-glass);
+    backdrop-filter: blur(10px);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+  }
+
+  .sidebar-logo .project-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .sidebar-logo .project-sub {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+  }
+
+  .nav-section {
+    flex: 1;
+    padding: 16px 0;
+  }
+
+  .nav-label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-secondary);
+    padding: 0 20px 8px;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 20px;
+    cursor: pointer;
+    transition: var(--transition);
+    color: var(--text-secondary);
+    font-size: 13px;
+    text-decoration: none;
+  }
+
+  .nav-item:hover { background: rgba(255,255,255,0.06); color: var(--text-primary); }
+  .nav-item.active { background: rgba(99,102,241,0.15); color: var(--accent); border-left: 2px solid var(--accent); }
+
+  .nav-item .nav-icon { width: 16px; text-align: center; font-size: 14px; }
+
+  .sidebar-user {
+    padding: 16px 20px;
+    border-top: 1px solid var(--glass-border-soft);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .user-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--accent-glass);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .user-info { flex: 1; }
+  .user-name { font-size: 12px; font-weight: 600; }
+  .user-role { font-size: 10px; color: var(--text-secondary); }
+
+  /* Main */
+  .main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* Header */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 28px;
+    background: rgba(255,255,255,0.03);
+    border-bottom: 1px solid var(--glass-border-soft);
+    backdrop-filter: blur(20px);
+  }
+
+  .breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+
+  .breadcrumb .sep { color: rgba(255,255,255,0.25); }
+  .breadcrumb .current { color: var(--text-primary); font-weight: 500; }
+
+  .sprint-chip {
+    background: rgba(99,102,241,0.2);
+    border: 1px solid rgba(99,102,241,0.4);
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 11px;
+    color: #a5b4fc;
+    margin-left: 8px;
+  }
+
+  .header-actions { display: flex; gap: 10px; align-items: center; }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: var(--transition);
+    border: none;
+    font-family: var(--font);
+  }
+
+  .btn-primary {
+    background: var(--accent-glass);
+    backdrop-filter: blur(10px);
+    color: #fff;
+  }
+  .btn-primary:hover { background: var(--accent); }
+
+  .btn-ghost {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid var(--glass-border);
+    color: var(--text-primary);
+  }
+  .btn-ghost:hover { background: rgba(255,255,255,0.12); }
+
+  /* Content */
+  .content { flex: 1; overflow-y: auto; padding: 28px; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.2) transparent; }
+
+  .content-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+
+  .content-title { font-size: 20px; font-weight: 600; }
+  .story-count { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+
+  /* Story table */
+  .story-table {
+    background: var(--glass-card);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .table-header {
+    display: grid;
+    grid-template-columns: 1fr 90px 130px 60px 140px 100px;
+    gap: 12px;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--glass-border-soft);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-secondary);
+  }
+
+  .story-row {
+    display: grid;
+    grid-template-columns: 1fr 90px 130px 60px 140px 100px;
+    gap: 12px;
+    padding: 14px 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    align-items: center;
+    transition: var(--transition);
+    border-left: 3px solid transparent;
+  }
+
+  .story-row:hover { background: rgba(255,255,255,0.04); }
+  .story-row:last-child { border-bottom: none; }
+  .story-row.critical { border-left-color: var(--c-critical); }
+  .story-row.high     { border-left-color: var(--c-high); }
+  .story-row.medium   { border-left-color: var(--c-medium); }
+  .story-row.low      { border-left-color: var(--c-low); }
+
+  .story-title { font-size: 13px; font-weight: 500; }
+  .story-desc  { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+
+  .priority-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .badge-critical { background: rgba(239,68,68,0.15); color: #fca5a5; }
+  .badge-high     { background: rgba(249,115,22,0.15); color: #fdba74; }
+  .badge-medium   { background: rgba(59,130,246,0.15); color: #93c5fd; }
+  .badge-low      { background: rgba(34,197,94,0.15);  color: #86efac; }
+
+  .status-select {
+    background: rgba(255,255,255,0.07);
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-family: var(--font);
+    font-size: 12px;
+    padding: 5px 8px;
+    cursor: pointer;
+    appearance: none;
+    width: 100%;
+  }
+
+  .points-badge {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    padding: 3px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    text-align: center;
+  }
+
+  .assignee { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+  .assignee-avatar {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: rgba(99,102,241,0.4);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 600;
+  }
+
+  /* Inline add form */
+  .add-form {
+    background: rgba(99,102,241,0.05);
+    border: 1px dashed rgba(99,102,241,0.4);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    margin-top: 16px;
+    display: none;
+  }
+  .add-form.visible { display: flex; gap: 12px; align-items: flex-end; }
+
+  .form-field { display: flex; flex-direction: column; gap: 4px; }
+  .form-label { font-size: 11px; color: var(--text-secondary); }
+  .form-input {
+    background: rgba(255,255,255,0.07);
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-family: var(--font);
+    font-size: 13px;
+    padding: 8px 12px;
+    outline: none;
+    transition: var(--transition);
+  }
+  .form-input:focus { border-color: var(--accent); background: rgba(255,255,255,0.1); }
+  .form-input::placeholder { color: var(--text-secondary); }
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-icon">📋</div>
+    <div>
+      <div class="project-name">Planning Board</div>
+      <div class="project-sub">Sprint 2 — Core Features</div>
+    </div>
+  </div>
+  <div class="nav-section">
+    <div class="nav-label">Planning</div>
+    <a class="nav-item active" href="index.html">
+      <span class="nav-icon">≡</span> Backlog
+    </a>
+    <a class="nav-item" href="sprint-board.html">
+      <span class="nav-icon">⬜</span> Board
+    </a>
+    <a class="nav-item" href="releases.html">
+      <span class="nav-icon">🏷</span> Releases
+    </a>
+    <a class="nav-item" href="sprint-analytics.html">
+      <span class="nav-icon">📊</span> Analytics
+    </a>
+  </div>
+  <div class="sidebar-user">
+    <div class="user-avatar">CA</div>
+    <div class="user-info">
+      <div class="user-name">Carol Aspen</div>
+      <div class="user-role">Developer</div>
+    </div>
+  </div>
+</nav>
+
+<!-- Main -->
+<div class="main">
+  <!-- Header -->
+  <header class="header">
+    <div class="breadcrumb">
+      <span>Planning Board</span>
+      <span class="sep">/</span>
+      <span class="current">Backlog</span>
+      <span class="sprint-chip">Sprint 2 · Jan 20 – Jan 31</span>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-ghost" onclick="document.querySelector('.add-form').classList.toggle('visible')">+ Add Story</button>
+    </div>
+  </header>
+
+  <!-- Content -->
+  <div class="content">
+    <div class="content-header">
+      <div>
+        <div class="content-title">Backlog</div>
+        <div class="story-count">11 stories · 44 points total</div>
+      </div>
+    </div>
+
+    <!-- Story Table -->
+    <div class="story-table">
+      <div class="table-header">
+        <span>Title</span>
+        <span>Priority</span>
+        <span>Status</span>
+        <span>Pts</span>
+        <span>Sprint</span>
+        <span>Assignee</span>
+      </div>
+
+      <div class="story-row high">
+        <div><div class="story-title">Set up project structure</div><div class="story-desc">Initialise CAP project and configure sqlite</div></div>
+        <span><span class="priority-badge badge-high">High</span></span>
+        <select class="status-select"><option>Completed</option></select>
+        <span class="points-badge">3</span>
+        <span style="font-size:12px;color:var(--text-secondary)">Sprint 1</span>
+        <div class="assignee"><div class="assignee-avatar">AL</div><span>alice</span></div>
+      </div>
+
+      <div class="story-row high">
+        <div><div class="story-title">Build Backlog UI</div><div class="story-desc">OpenUI5 XMLView for backlog with CRUD operations</div></div>
+        <span><span class="priority-badge badge-high">High</span></span>
+        <select class="status-select"><option>In Progress</option></select>
+        <span class="points-badge">8</span>
+        <span style="font-size:12px;color:var(--text-secondary)">Sprint 2</span>
+        <div class="assignee"><div class="assignee-avatar">CA</div><span>carol</span></div>
+      </div>
+
+      <div class="story-row high">
+        <div><div class="story-title">Build Sprint Board UI</div><div class="story-desc">OpenUI5 XMLView for sprint board</div></div>
+        <span><span class="priority-badge badge-high">High</span></span>
+        <select class="status-select"><option>In Progress</option></select>
+        <span class="points-badge">8</span>
+        <span style="font-size:12px;color:var(--text-secondary)">Sprint 2</span>
+        <div class="assignee"><div class="assignee-avatar">CA</div><span>carol</span></div>
+      </div>
+
+      <div class="story-row medium">
+        <div><div class="story-title">Add totalPoints function</div><div class="story-desc">Calculate total story points per sprint</div></div>
+        <span><span class="priority-badge badge-medium">Medium</span></span>
+        <select class="status-select"><option>New</option></select>
+        <span class="points-badge">2</span>
+        <span style="font-size:12px;color:var(--text-secondary)">Sprint 2</span>
+        <div class="assignee"><div class="assignee-avatar">AL</div><span>alice</span></div>
+      </div>
+
+      <div class="story-row medium">
+        <div><div class="story-title">Write integration tests</div><div class="story-desc">Cover all service endpoints with tests</div></div>
+        <span><span class="priority-badge badge-medium">Medium</span></span>
+        <select class="status-select"><option>New</option></select>
+        <span class="points-badge">3</span>
+        <span style="font-size:12px;color:var(--text-secondary)">Sprint 3</span>
+        <div class="assignee"><div class="assignee-avatar">AL</div><span>alice</span></div>
+      </div>
+
+      <div class="story-row low">
+        <div><div class="story-title">Performance tuning</div><div class="story-desc">Optimise OData queries for large datasets</div></div>
+        <span><span class="priority-badge badge-low">Low</span></span>
+        <select class="status-select"><option>New</option></select>
+        <span class="points-badge">2</span>
+        <span style="font-size:12px;color:var(--text-secondary)">—</span>
+        <div class="assignee"><span style="color:var(--text-secondary)">Unassigned</span></div>
+      </div>
+    </div>
+
+    <!-- Inline Add Form -->
+    <div class="add-form" id="addForm">
+      <div class="form-field" style="flex:1">
+        <label class="form-label">Story Title *</label>
+        <input class="form-input" placeholder="What needs to be done?" style="min-width:260px">
+      </div>
+      <div class="form-field">
+        <label class="form-label">Priority</label>
+        <select class="status-select" style="width:110px;padding:8px 12px">
+          <option>Medium</option><option>High</option><option>Critical</option><option>Low</option>
+        </select>
+      </div>
+      <div class="form-field">
+        <label class="form-label">Points</label>
+        <input class="form-input" type="number" placeholder="0" style="width:70px;text-align:center">
+      </div>
+      <button class="btn btn-primary">Create</button>
+      <button class="btn btn-ghost" onclick="document.querySelector('.add-form').classList.remove('visible')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

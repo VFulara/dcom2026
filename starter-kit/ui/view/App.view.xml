@@ -1,0 +1,11 @@
+<mvc:View
+  controllerName="planning.board.controller.App"
+  xmlns:mvc="sap.ui.core.mvc"
+  xmlns="sap.m"
+  displayBlock="true">
+  <Shell>
+    <App id="navContainer">
+      <pages/>
+    </App>
+  </Shell>
+</mvc:View>

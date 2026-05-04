@@ -1,0 +1,305 @@
+# Hands-On Guide — Claude Code Session Assistant
+
+> This file is referenced by CLAUDE.md to give Claude Code precise, tested instructions for guiding participants through the AI-Augmented Development session. Every item here reflects the current restructured starter kit (last validated 2026-05-04).
+
+---
+
+## Session State at a Glance
+
+| What exists in the starter kit | What agents add |
+|-------------------------------|-----------------|
+| `specs/feature-enhancement/requirements.md` — pre-written | `specs/feature-enhancement/design.md` — generated in Step 1C |
+| `ui/manifest.json` — all 4 routes pre-populated | `specs/feature-enhancement/todo.md` — generated in Step 1D |
+| `ui/util/FilterHelper.js` — full filter implementation | `srv/release-service.cds/.js` — Agent A |
+| `ui/util/Formatters.js` — priority/status formatters | `srv/analytics-service.cds/.js` — Agent B |
+| `ui/view/Backlog.view.xml` — with search/filter bar | `ui/view/Releases.view.xml` — Agent A |
+| `ui/controller/Backlog.controller.js` — inline editing | `ui/view/SprintAnalytics.view.xml` — Agent B |
+| `ui/view/SprintBoard.view.xml` — with Create Sprint | `db/schema.cds` — Release entity added by Agent A |
+| Seed data with proper UUIDs | |
+
+---
+
+## Pre-Session Checklist (Claude verifies on first message)
+
+When the participant opens Claude Code in the planning-board directory, Claude should silently verify:
+
+```bash
+# 1. Check node version
+node --version   # must be v18+
+
+# 2. Check node_modules installed
+ls node_modules/@sap/cds 2>/dev/null || echo "NEEDS_INSTALL"
+
+# 3. Check git is initialised
+ls .git 2>/dev/null || echo "NEEDS_GIT_INIT"
+
+# 4. Check seed data has proper UUIDs
+head -2 db/data/planning-Sprints.csv
+```
+
+If any check fails, fix it proactively before the participant notices.
+
+---
+
+## Setup Phase
+
+### Starting the App
+
+Preferred method — run the start script (kills port 4004 first):
+```bash
+./start-legacy.sh
+```
+
+Manual fallback:
+```bash
+npm install
+npx cds watch
+```
+
+Expected output: `server listening on { url: 'http://localhost:4004' }` with Stories, Sprints entities visible.
+
+### Git init (required before Step 1E)
+
+If `.git` does not exist, run immediately:
+```bash
+git init && git add -A && git commit -m "initial starter kit"
+```
+
+Ensure `worktrees/` is in `.gitignore`:
+```bash
+grep -q "worktrees/" .gitignore || echo "worktrees/" >> .gitignore
+git add .gitignore && git commit -m "chore: ignore worktrees" 2>/dev/null || true
+```
+
+---
+
+## Phase 1 — Feature Enhancement
+
+### Step 1B: Pre-Provided Requirements
+
+`specs/feature-enhancement/requirements.md` is in the starter kit. Participants do NOT generate it.
+Step 1B is: read it → optionally annotate → invoke `@lead-architect review specs/feature-enhancement/requirements.md`.
+
+The architect is in **Spec Review mode** — it challenges Sprint→Release invariants and Feature C UX.
+Participants must address challenges before proceeding. Budget ~5 min.
+
+### Step 1C: Two-Agent Design Challenge
+
+After design.md is generated, participants invoke two agents in parallel:
+- `@lead-architect review specs/feature-enhancement/design.md`
+- `@tech-evangelist review specs/feature-enhancement/design.md`
+
+This is the **key pedagogical moment** for spec-driven development. Both agents challenge the Feature C filter UX approach and the Sprint→Release API design.
+
+Expected challenges:
+- `@tech-evangelist`: "Is a query syntax (JQL) discoverable for end users? Why not pure dropdowns?"
+- `@lead-architect`: "Are Sprint→Release invariants stated? Domain events mandatory on archiveRelease and completeSprint?"
+
+`@senior-app-developer` API contract review happens at Step 1F (optional), not here.
+
+### No-Conflict Agent File Split (Current Reality)
+
+The extend service architecture completely avoids merge conflicts:
+- Agent A creates: `srv/release-service.cds`, `srv/release-service.js`, `ui/view/Releases.view.xml`, `ui/controller/Releases.controller.js`
+- Agent A modifies: `db/schema.cds`, `ui/view/Backlog.view.xml`, `ui/controller/Backlog.controller.js`, `ui/i18n/i18n.properties`, `ui/util/FilterHelper.js`
+- Agent B creates: `srv/sprint-actions.cds`, `srv/sprint-actions.js`, `srv/analytics-service.cds`, `srv/analytics-service.js`, `ui/view/SprintAnalytics.view.xml`, `ui/controller/SprintAnalytics.controller.js`
+- **Neither agent modifies**: `srv/backlog-service.cds`, `srv/backlog-service.js`, `srv/sprint-service.cds`, `srv/sprint-service.js`, `ui/manifest.json`
+
+Merge conflicts **should NOT occur**. If a participant sees one, an agent modified a file outside its ownership. The fix is always to keep both sides (additive changes).
+
+### Step 1D: Commit + /clear Sequence
+
+After writing `todo.md`:
+```bash
+git add specs/ && git commit -m "add Phase 1 specs"
+```
+Then `/clear` in Claude Code. The specs are on disk — agents read files, not chat history.
+
+### Step 1E: Launching Parallel Agents
+
+Run `/run-parallel-agents`. The command:
+1. Detects Phase 1 (checks `specs/feature-enhancement/design.md`)
+2. Creates `worktrees/feature-a` on branch `feature/release-management`
+3. Creates `worktrees/feature-b` on branch `feature/sprint-analytics`
+4. Copies CLAUDE.md and `.claude/` into each worktree
+5. Runs `npm install` in each worktree
+
+If participants skip the git commit step, instruct:
+```bash
+git -C worktrees/feature-a add -A && git -C worktrees/feature-a commit -m "feat: release management"
+git -C worktrees/feature-b add -A && git -C worktrees/feature-b commit -m "feat: sprint analytics"
+```
+
+### Step 1F: Merge Commands (Correct Syntax)
+
+After both agents commit — use branch names, not directory paths:
+```bash
+git merge feature/release-management
+git merge feature/sprint-analytics
+```
+
+### Step 1F: Review Gate
+
+**Required (core gate — run in parallel):**
+- `@code-reviewer review all changed files` — checks SOLID/DRY/DDD compliance
+- `@lead-architect review all changes` — final merge approval
+
+**Optional (if time permits):**
+- `@tech-evangelist review frontend` — i18n, AP-1, AP-2, AP-3
+- `@senior-app-developer validate api contracts` — OData signatures, traversal directions
+
+---
+
+## Phase 2 — App Modernisation
+
+Phase 2 is mandatory and creates a new `modern/` subdirectory alongside the legacy app. The legacy app keeps running at port 4004; the modern app runs at port 4005 (backend) and port 5173 (frontend). Both are accessible simultaneously for comparison.
+
+### Phase 2: Launching Parallel Agents
+
+Run `/run-parallel-agents` again. The command detects Phase 2 when `specs/modernisation/design.md` exists and the Phase 1 worktrees already exist. It creates:
+- `worktrees/modernisation-a` on branch `feature/modernisation-backend`
+- `worktrees/modernisation-b` on branch `feature/modernisation-frontend`
+
+### Phase 2 Backend Migration (Agent A): CDS v9 Service Syntax
+
+Agent A creates the `modern/` directory. The migration changes the handler wrapper for all 4 services (BacklogService, SprintService, ReleaseService, AnalyticsService):
+
+**v6 (before — in srv/*.js):**
+```js
+module.exports = cds.service.impl(async function () {
+  this.on('event', handler);
+});
+```
+
+**v9 (after — in modern/srv/*.js):**
+```js
+module.exports = class BacklogService extends cds.ApplicationService {
+  async init() {
+    await super.init();
+    this.on('event', handler);
+  }
+};
+```
+
+`await super.init()` is required as the first statement. Also change `cds.emit(...)` → `this.emit(...)`.
+
+### Phase 2 Backend: SQLite Config
+
+CDS v9 `modern/package.json` must use in-memory SQLite (not shorthand `"db": "sqlite"`):
+```json
+"cds": { "server": { "port": 4005 }, "requires": { "db": { "kind": "sqlite", "credentials": { "database": ":memory:" } } } }
+```
+The shorthand creates a file-based DB that persists stale schema across restarts.
+
+### Phase 2 Frontend (Agent B): Create modern/ui/ — Do NOT Delete Legacy ui/
+
+Agent B creates the `modern/ui/` React app. The legacy `ui/` directory must remain untouched.
+
+**File plan for Agent B:**
+- `modern/ui/package.json` — React 18, @ui5/webcomponents-react@2, Vite
+- `modern/ui/index.html` — Vite entry point
+- `modern/ui/vite.config.js` — proxy `/odata/v4/` → `http://localhost:4005`
+- `modern/ui/src/main.jsx` + components in `modern/ui/src/components/`
+
+Without keeping legacy `ui/` intact, the legacy app at port 4004 breaks.
+
+### Phase 2 Verify: Two Apps Running Simultaneously
+
+Use the start script (leave legacy running in another terminal):
+```bash
+./start-modern.sh   # starts CDS v9 at port 4005 + Vite at port 5173
+```
+
+Or manually in two terminals:
+- Terminal 1: `cd modern && npx cds watch` (backend at localhost:4005)
+- Terminal 2: `cd modern/ui && npm run dev` (frontend at localhost:5173)
+
+Access modern app at `localhost:5173`. The Vite proxy forwards `/odata/*` to port 4005.
+Access legacy app at `localhost:4004` for side-by-side comparison.
+
+---
+
+## Quick Recovery Procedures
+
+### "npm install failed with 404"
+```bash
+# Most likely culprit: stale package reference
+# Check package.json — remove any @sap/cds-test entry
+npm install
+```
+
+### "cds watch says port in use"
+```bash
+./start-legacy.sh   # kills port 4004 automatically
+# or manually:
+lsof -i :4004 -t | xargs kill -9 && npx cds watch
+```
+
+### "git merge says Already up to date"
+The agent didn't commit. Go to the worktree and commit:
+```bash
+git -C worktrees/feature-a add -A && git -C worktrees/feature-a commit -m "feat: release management"
+git merge feature/release-management
+```
+
+### "git merge has CONFLICT"
+Each agent creates distinct files — this should not happen. If it does, an agent modified a shared file. Always keep both sides (additive changes):
+```bash
+# Edit the conflicted file: remove <<<, ===, >>> markers, keep ALL changes
+git add <conflicted-file>
+git commit -m "merge: resolved additive conflict in <file>"
+```
+
+### "totalPoints/sprintVelocity returns 400 with UUID error"
+Create a new sprint to get a real UUID, then use that ID:
+```bash
+curl -s -X POST http://localhost:4004/odata/v4/sprint/Sprints \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Test Sprint","status":"Active"}'
+```
+
+### "App shows blank page at localhost:4004"
+Check `ui/index.html` CDN URL — must be `1.120` not `1.120.x`:
+```html
+<!-- Correct -->
+src="https://sdk.openui5.org/1.120/resources/sap-ui-core.js"
+```
+No restart needed — save and refresh.
+
+### "OData proxy not working on localhost:5173"
+Check `modern/ui/vite.config.js` has:
+```js
+server: { proxy: { '/odata': 'http://localhost:4005' } }
+```
+Also ensure modern CDS backend is running on localhost:4005 (`cd modern && npx cds watch`).
+
+---
+
+## Timing Guidance for Claude
+
+Use these estimates when helping participants manage time:
+
+| Step | Target | If running late |
+|------|--------|-----------------|
+| Setup | 5 min | Trust cds watch output; skip manual verification |
+| 1A Explore (optional) | 0–2 min | Skip if service structure is clear from CLAUDE.md |
+| 1B Review Requirements | 5 min | Read quickly; skip annotations; go straight to @lead-architect |
+| 1C Design | 8 min | Allow 2 agents to challenge — key learning moment |
+| 1D Task list + /clear | 2 min | Copy from design.md file list |
+| 1E Agents (waiting) | 8–12 min | Read specs while agents run |
+| 1F Review (core gate) | 8 min | @code-reviewer + @lead-architect in parallel |
+| 1G Verify | 5 min | Test archiveRelease and sprintVelocity only |
+| Phase 2 | 20 min | Required — specs 6 min, agents 8 min, verify 6 min |
+
+**Total target: ~55–60 min.** Phase 1 demonstrates spec-driven development; Phase 2 demonstrates stack modernisation.
+
+---
+
+## Notes for Session Facilitator
+
+- **Feature C is pre-built** in the starter kit (search bar, inline editing, sprint assignment). HANDSON.md correctly describes this. The design exercise in Step 1C is pedagogical — participants evaluate the JQL vs. dropdown trade-off even though the starter already chose it. Agent A will extend/adjust the existing implementation.
+- **No merge conflicts expected** — the bounded context architecture gives each agent new files. If a participant sees one, an agent violated file ownership. The fix is always to keep both additions.
+- **Step 1C is the design debate** — both agents challenge the spec. Budget the 8 min generously; this is the most educational step.
+- **Seed data uses proper UUIDs** — `sprintVelocity(sprintId)` and `totalPoints(sprintId)` work directly with seed sprint IDs.
+- **Phase 2 is mandatory** — it creates `modern/` alongside the legacy app. Both versions run simultaneously so participants can compare the OpenUI5 and React UIs side by side.
+- **Pre-run `npm install`** in the starter-kit before distributing — saves 2–3 min per participant.

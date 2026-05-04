@@ -1,0 +1,12 @@
+ID,title,description,assignee,status,priority,storyPoints,estimateHours,sprint_ID
+"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa","Set up project structure","Initialise CAP project and configure sqlite","alice","Completed","High",3,4.00,"11111111-1111-1111-1111-000000000001"
+"bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb","Create Stories entity","Define CDS schema for Stories with all fields","bob","Completed","High",5,6.00,"11111111-1111-1111-1111-000000000001"
+"cccccccc-cccc-cccc-cccc-cccccccccccc","Create Sprints entity","Define CDS schema for Sprints","alice","Completed","Medium",3,4.00,"11111111-1111-1111-1111-000000000001"
+"dddddddd-dddd-dddd-dddd-dddddddddddd","Implement OData service","Expose Stories and Sprints via PlanningService","bob","Completed","High",5,8.00,"11111111-1111-1111-1111-000000000001"
+"eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee","Build Backlog UI","OpenUI5 XMLView for backlog with CRUD operations","carol","In Progress","High",8,12.00,"22222222-2222-2222-2222-000000000002"
+"ffffffff-ffff-ffff-ffff-ffffffffffff","Build Sprint Board UI","OpenUI5 XMLView for sprint board","carol","In Progress","High",8,12.00,"22222222-2222-2222-2222-000000000002"
+"11111111-2222-3333-4444-555555555555","Add totalPoints function","Calculate total story points per sprint","alice","New","Medium",2,3.00,"22222222-2222-2222-2222-000000000002"
+"22222222-3333-4444-5555-666666666666","Add priority ordering","Sort backlog by priority in service","bob","New","Medium",2,2.00,"22222222-2222-2222-2222-000000000002"
+"33333333-4444-5555-6666-777777777777","Write integration tests","Cover all service endpoints with tests","alice","New","Medium",3,4.00,"33333333-3333-3333-3333-000000000003"
+"44444444-5555-6666-7777-888888888888","Performance tuning","Optimise OData queries for large datasets","","New","Low",2,3.00,""
+"55555555-6666-7777-8888-999999999999","Accessibility audit","Check OpenUI5 components for a11y compliance","","New","Medium",3,5.00,""

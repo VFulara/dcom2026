@@ -1,0 +1,85 @@
+{
+  "mcpServers": {
+    "cap-js-mcp-server": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["@cap-js/mcp-server@0.0.3"]
+    },
+    "sap-fiori-mcp-server": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["@sap-ux/fiori-mcp-server@latest", "fiori-mcp"]
+    }
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'echo \"$CLAUDE_TOOL_INPUT\" | python3 -c \"import sys,json; d=json.load(sys.stdin); path=d.get(\\\"file_path\\\",d.get(\\\"path\\\",\\\"\\\")); import re; bad=re.search(r\\\"(\\\\.env|\\\\.pem|\\\\.key|credentials)\\\", path); sys.exit(2) if bad else sys.exit(0)\" 2>/dev/null || exit 0'",
+            "description": "Block writes to credential files"
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'echo \"$CLAUDE_TOOL_INPUT\" | python3 -c \"import sys,json; d=json.load(sys.stdin); path=d.get(\\\"file_path\\\",d.get(\\\"path\\\",\\\"\\\")); content=d.get(\\\"content\\\",d.get(\\\"new_string\\\",\\\"\\\")); import re; is_srv=re.search(r\\\"/srv/\\\",path); has_log=re.search(r\\\"console\\\\.(log|error|warn)\\\",content); sys.exit(2) if (is_srv and has_log) else sys.exit(0)\" 2>/dev/null || exit 0'",
+            "description": "Block console.log in srv/ — use cds.log() instead"
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Read(**)",
+      "Write(db/**)",
+      "Write(srv/**)",
+      "Write(test/**)",
+      "Write(ui/**)",
+      "Write(specs/**)",
+      "Write(package.json)",
+      "Write(.cdsrc.json)",
+      "Write(.gitignore)",
+      "Write(.claude/agents/**)",
+      "Bash(npm install)",
+      "Bash(npm install *)",
+      "Bash(npm test)",
+      "Bash(npm run *)",
+      "Bash(cds watch)",
+      "Bash(cds build)",
+      "Bash(git init)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git worktree *)",
+      "Bash(git merge *)",
+      "Bash(git status)",
+      "Bash(git diff *)",
+      "Bash(cat *)",
+      "Bash(ls *)",
+      "Bash(mkdir *)",
+      "Bash(cp -r * *)"
+    ],
+    "deny": [
+      "Bash(git push*)",
+      "Bash(git push --force*)",
+      "Bash(cf push*)",
+      "Bash(cf deploy*)",
+      "Bash(mbt build*)",
+      "Bash(rm -rf*)",
+      "Bash(curl * | bash*)",
+      "Bash(wget * | sh*)",
+      "Write(.env*)",
+      "Write(*.pem)",
+      "Write(*.key)",
+      "Write(*.p12)",
+      "Write(CLAUDE.md)",
+      "Write(.claude/settings.json)"
+    ]
+  }
+}

@@ -1,0 +1,100 @@
+{
+  "_version": "1.58.0",
+  "sap.app": {
+    "id": "planning.board",
+    "type": "application",
+    "title": "Planning Board",
+    "description": "Agile sprint planning board",
+    "applicationVersion": { "version": "0.1.0" },
+    "dataSources": {
+      "backlog": {
+        "uri": "/odata/v4/backlog/",
+        "type": "OData",
+        "settings": { "odataVersion": "4.0" }
+      },
+      "sprint": {
+        "uri": "/odata/v4/sprint/",
+        "type": "OData",
+        "settings": { "odataVersion": "4.0" }
+      },
+      "release": {
+        "uri": "/odata/v4/release/",
+        "type": "OData",
+        "settings": { "odataVersion": "4.0" }
+      },
+      "analytics": {
+        "uri": "/odata/v4/analytics/",
+        "type": "OData",
+        "settings": { "odataVersion": "4.0" }
+      }
+    }
+  },
+  "sap.ui5": {
+    "rootView": {
+      "viewName": "planning.board.view.App",
+      "type": "XML",
+      "id": "app"
+    },
+    "routing": {
+      "config": {
+        "routerClass": "sap.m.routing.Router",
+        "viewType": "XML",
+        "viewPath": "planning.board.view",
+        "controlId": "navContainer",
+        "controlAggregation": "pages"
+      },
+      "routes": [
+        { "name": "backlog",        "pattern": "",          "target": "backlog" },
+        { "name": "sprintBoard",    "pattern": "sprints",   "target": "sprintBoard" },
+        { "name": "releases",       "pattern": "releases",  "target": "releases" },
+        { "name": "sprintAnalytics","pattern": "analytics", "target": "sprintAnalytics" }
+      ],
+      "targets": {
+        "backlog":         { "viewName": "Backlog",         "viewLevel": 1 },
+        "sprintBoard":     { "viewName": "SprintBoard",     "viewLevel": 1 },
+        "releases":        { "viewName": "Releases",        "viewLevel": 1 },
+        "sprintAnalytics": { "viewName": "SprintAnalytics", "viewLevel": 1 }
+      }
+    },
+    "models": {
+      "": {
+        "dataSource": "backlog",
+        "settings": {
+          "synchronizationMode": "None",
+          "operationMode": "Server",
+          "autoExpandSelect": true
+        }
+      },
+      "sprint": {
+        "dataSource": "sprint",
+        "settings": {
+          "synchronizationMode": "None",
+          "operationMode": "Server",
+          "autoExpandSelect": true
+        }
+      },
+      "release": {
+        "dataSource": "release",
+        "settings": {
+          "synchronizationMode": "None",
+          "operationMode": "Server",
+          "autoExpandSelect": true
+        }
+      },
+      "analytics": {
+        "dataSource": "analytics",
+        "settings": {
+          "synchronizationMode": "None",
+          "operationMode": "Server",
+          "autoExpandSelect": true
+        }
+      },
+      "i18n": {
+        "type": "sap.ui.model.resource.ResourceModel",
+        "settings": {
+          "bundleName": "planning.board.i18n.i18n"
+        }
+      }
+    }
+  }
+}

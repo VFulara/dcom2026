@@ -1,0 +1,35 @@
+{
+  "name": "planning-board",
+  "version": "0.1.0",
+  "description": "Agile planning board — SAP CAP v6 backend + OpenUI5 frontend",
+  "engines": { "node": ">=18.x" },
+  "dependencies": {
+    "@sap/cds": "^6",
+    "sqlite3": "^5",
+    "express": "^4"
+  },
+  "devDependencies": {
+    "@sap/cds-dk": "^6",
+    "jest": "^29"
+  },
+  "scripts": {
+    "start": "cds-serve",
+    "watch": "cds watch",
+    "test": "jest --testPathPattern=test/"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testTimeout": 30000
+  },
+  "cds": {
+    "requires": {
+      "db": {
+        "kind": "sqlite",
+        "credentials": { "database": ":memory:" }
+      }
+    },
+    "folders": {
+      "app": "ui/"
+    }
+  }
+}
