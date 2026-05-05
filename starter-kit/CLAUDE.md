@@ -3,6 +3,21 @@
 ## Session Guide
 Read `handson-guide.md` in this directory for step-by-step facilitation guidance, all known issues and their fixes, recovery procedures, and timing targets for the hands-on session.
 
+**Before generating any Phase 2 React frontend code**, read the section "Phase 2 Frontend: Critical Patterns That Prevent Rework" in `handson-guide.md`. It documents 13 concrete mistakes (FE-1 through FE-13) that were discovered during implementation review and each caused rework. Applying them upfront makes the first implementation attempt reviewable without a multi-pass fix cycle. Key patterns:
+- FE-1: Never use URLSearchParams for OData query params (encodes `$` → `%24`)
+- FE-2: Single-quote UUID keys in all PATCH/DELETE URLs: `Entity('${id}')`
+- FE-3: Always pass `$expand=sprint` when reading Stories for the Backlog view
+- FE-4: Wrap filter computation in `useMemo` to prevent infinite `useEffect` loops
+- FE-5: Use `filterHelper.ts` for all OData filter expressions — no template literals
+- FE-6: Each page fetches only from its own bounded context service
+- FE-7: Use `accessibleNameRef` + `onAfterClose` (not `aria-labelledby` + `onClose`) on Dialogs
+- FE-8: Unwrap `storiesByRelease` as `const { value: stories = [] } = result`
+- FE-9: Import `type { CSSProperties }` from 'react' — `React.CSSProperties` not available with automatic JSX transform
+- FE-10: Define STATUS_OPTIONS and PRIORITY_OPTIONS once in `constants.ts`, no empty-string sentinels
+- FE-11: Every dialog `<label>` must have `htmlFor` matching the control's `id`
+- FE-12: Never nest a `<button>` inside a `role="button"` element (WCAG 4.1.2)
+- FE-13: Add `:focus-visible` outline to `.btn`, `.form-input`, `.status-select`
+
 ## What This App Does
 A lightweight Agile planning board for SAP development teams. Lets you create and manage backlog stories with priority, estimate, status, and assignee. Organise stories into time-boxed sprints. Track sprint progress and backlog health through an OData v4 service and a classic OpenUI5 1.120 frontend.
 
