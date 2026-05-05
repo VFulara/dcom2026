@@ -3,7 +3,7 @@
 ## Session Guide
 Read `handson-guide.md` in this directory for step-by-step facilitation guidance, all known issues and their fixes, recovery procedures, and timing targets for the hands-on session.
 
-**Before generating any Phase 2 React frontend code**, read the section "Phase 2 Frontend: Critical Patterns That Prevent Rework" in `handson-guide.md`. It documents 13 concrete mistakes (FE-1 through FE-13) that were discovered during implementation review and each caused rework. Applying them upfront makes the first implementation attempt reviewable without a multi-pass fix cycle. Key patterns:
+**Before generating any Phase 2 React frontend code**, read the section "Phase 2 Frontend: Critical Patterns That Prevent Rework" in `handson-guide.md`. It documents 17 concrete mistakes (FE-1 through FE-17) that were discovered during implementation review and each caused rework. Applying them upfront makes the first implementation attempt reviewable without a multi-pass fix cycle. Key patterns:
 - FE-1: Never use URLSearchParams for OData query params (encodes `$` → `%24`)
 - FE-2: Single-quote UUID keys in all PATCH/DELETE URLs: `Entity('${id}')`
 - FE-3: Always pass `$expand=sprint` when reading Stories for the Backlog view
@@ -17,6 +17,10 @@ Read `handson-guide.md` in this directory for step-by-step facilitation guidance
 - FE-11: Every dialog `<label>` must have `htmlFor` matching the control's `id`
 - FE-12: Never nest a `<button>` inside a `role="button"` element (WCAG 4.1.2)
 - FE-13: Add `:focus-visible` outline to `.btn`, `.form-input`, `.status-select`
+- FE-14: Inline sprint assignment in the Backlog row requires a `SprintSelect` component — rendering `story.sprint?.name` as static text silently drops the legacy edit capability
+- FE-15: Inline assignee editing requires an `AssigneeInput` component — commit on blur/Enter, revert on Escape, guard with `committed` ref to avoid PATCH on unchanged value
+- FE-16: Sprint → Release assignment on the Releases page reads sprints from `release` service (read projection) but PATCHes via `sprint` service (aggregate owner) — using `release` service for the PATCH is a DDD cross-context write violation
+- FE-17: Analytics velocity chart bars overflow container when label is static in flex column — use `position:absolute; bottom: barH+4` for value labels, separate sprint-name row outside the chart height, and give Planned/zero sprints a 4px token bar not the same height as active sprints
 
 ## What This App Does
 A lightweight Agile planning board for SAP development teams. Lets you create and manage backlog stories with priority, estimate, status, and assignee. Organise stories into time-boxed sprints. Track sprint progress and backlog health through an OData v4 service and a classic OpenUI5 1.120 frontend.

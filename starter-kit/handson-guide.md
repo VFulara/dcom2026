@@ -412,6 +412,203 @@ A native `<button>` inside a `role="button"` div is a WCAG 4.1.2 violation. Scre
 .status-select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 ```
 
+#### FE-14 Inline Sprint Assignment Missing from Backlog Row (migration regression)
+
+**Bug:** The legacy app allows changing a story's sprint directly from the backlog row via an inline select (`onSprintChange` in `Backlog.controller.js`). When migrating to React, the sprint column was rendered as static text (`story.sprint?.name ?? '—'`), silently dropping this capability.
+
+**Root cause:** The `StatusSelect` component pattern was not applied to the sprint column. Sprint is an editable FK on Story just like status — it needs the same optimistic-UI + PATCH pattern.
+
+**Fix:** Create `src/components/SprintSelect.tsx` and replace the static sprint cell in `BacklogPage.tsx`:
+
+```tsx
+// src/components/SprintSelect.tsx
+interface SprintSelectProps {
+  storyId: string;
+  currentSprintId: string | undefined;
+  sprints: Sprint[];
+  onUpdated: () => void;
+}
+
+export default function SprintSelect({ storyId, currentSprintId, sprints, onUpdated }) {
+  const [value, setValue] = useState(currentSprintId ?? '');
+  // ... same optimistic-UI pattern as StatusSelect
+  async function handleChange(newSprintId: string) {
+    await api.patch('backlog', 'Stories', storyId, { sprint_ID: newSprintId || null });
+    setValue(newSprintId);
+    onUpdated();
+  }
+  return (
+    <select className="status-select" value={value} onChange={e => handleChange(e.target.value)}>
+      <option value="">— No Sprint —</option>
+      {sprints.map(sp => <option key={sp.ID} value={sp.ID}>{sp.name}</option>)}
+    </select>
+  );
+}
+```
+
+```tsx
+// BacklogPage.tsx — replace static sprint cell in the row
+// WRONG (static text — loses inline editing):
+<div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+  {story.sprint?.name ?? '—'}
+</div>
+
+// CORRECT — editable inline select using already-loaded sprints list:
+<SprintSelect
+  storyId={story.ID}
+  currentSprintId={story.sprint_ID}
+  sprints={sprints}
+  onUpdated={refresh}
+/>
+```
+
+**Key details:**
+- Pass `null` (not `undefined`) when clearing a sprint: `sprint_ID: newSprintId || null` — CAP OData PATCH treats `null` as explicit unset; omitting the key is a no-op.
+- The sprints list is already fetched by `BacklogPage` for filters — pass it as a prop, do not re-fetch in `SprintSelect`.
+- `currentSprintId` comes from `story.sprint_ID`, not `story.sprint?.ID` — the latter requires `$expand=sprint` and may be undefined before expansion resolves.
+
+#### FE-15 Inline Assignee Editing Missing from Backlog Row (migration regression)
+
+**Bug:** The legacy backlog row renders `{assignee}` as read-only text. The modern app migrated this faithfully — but the assignee column became even less useful as static text with no affordance to edit. Users had no way to change a story's assignee from the backlog.
+
+**Root cause:** No editable component was created for the `assignee` free-text field. Unlike `status` and `sprint` (which are selects), assignee is a plain text field requiring a different pattern: commit-on-blur/Enter, revert-on-Escape.
+
+**Fix:** Create `src/components/AssigneeInput.tsx` and replace the static assignee cell in `BacklogPage.tsx`:
+
+```tsx
+// src/components/AssigneeInput.tsx
+export default function AssigneeInput({ storyId, currentAssignee, onUpdated }) {
+  const [value, setValue] = useState(currentAssignee ?? '');
+  const committed = useRef(currentAssignee ?? '');
+
+  async function commit(newValue: string) {
+    const trimmed = newValue.trim();
+    if (trimmed === committed.current) return;  // no-op if unchanged
+    await api.patch('backlog', 'Stories', storyId, { assignee: trimmed || null });
+    committed.current = trimmed;
+    onUpdated();
+  }
+
+  return (
+    <input
+      className="form-input"
+      value={value}
+      onChange={e => setValue(e.target.value)}
+      onBlur={e => commit(e.target.value)}
+      onKeyDown={e => {
+        if (e.key === 'Enter')  e.currentTarget.blur();        // triggers commit via onBlur
+        if (e.key === 'Escape') { setValue(committed.current); e.currentTarget.blur(); }
+      }}
+    />
+  );
+}
+```
+
+**Key details:**
+- Use `committed` ref (not state) to track the last-saved value — avoids a stale-closure bug where the reverted value itself triggers another PATCH.
+- Commit on `blur`, not on every `onChange` — avoids a PATCH per keystroke.
+- Pass `null` when clearing: `assignee: trimmed || null`.
+- Guard `if (trimmed === committed.current) return` — prevents a redundant PATCH when the user clicks away without changing anything.
+
+#### FE-16 Sprint → Release Assignment Missing from Releases Page (feature gap)
+
+**Bug:** The modern Releases page showed release cards with no way to assign sprints to a release. The legacy app's Releases table used `$expand: 'Sprints'` to show a sprint count per release, but neither app provided a direct assignment UI. The `Sprint` entity has a `release_ID` FK, so assigning a sprint to a release is a Sprint aggregate mutation — it must go through `SprintService`, not `ReleaseService` (which exposes Sprints `@readonly`).
+
+**Root cause:** No sprint assignment UI was built on the Releases page. The `ReleaseService` correctly marks `Sprints` as `@readonly` (DDD cross-context read), but the PATCH to `release_ID` must target `/odata/v4/sprint/Sprints('id')`.
+
+**Fix:** Add a "Sprint → Release Assignment" section below the release cards in `ReleasesPage.tsx`:
+
+```tsx
+// Fetch sprints from ReleaseService (read-only cross-context view — just for display)
+api.list('release', 'Sprints')  // fetches all sprints with their release_ID
+
+// Assign sprint to release — PATCH goes through SprintService (sprint aggregate owner)
+async function handleSprintAssign(sprintId: string, releaseId: string) {
+  await api.patch('sprint', 'Sprints', sprintId, { release_ID: releaseId || null });
+  // update local state optimistically — no full refresh needed
+  setSprints(prev => prev.map(s => s.ID === sprintId
+    ? { ...s, release_ID: releaseId || undefined } : s));
+}
+
+// Render: one row per non-Completed sprint, a <select> over non-archived releases
+<select value={sprint.release_ID ?? ''} onChange={e => handleSprintAssign(sprint.ID, e.target.value)}>
+  <option value="">— No Release —</option>
+  {releases.filter(r => !r.archived).map(r => <option key={r.ID} value={r.ID}>{r.version}</option>)}
+</select>
+```
+
+**Key details:**
+- Read sprints from `release` service (`/odata/v4/release/Sprints`) — this is the `@readonly` cross-context projection, correct for display.
+- Write (PATCH) goes to `sprint` service (`/odata/v4/sprint/Sprints`) — the sprint aggregate owner. Using `release` service for a PATCH would violate DDD (cross-context write).
+- Only show non-`Completed` sprints in the assignment list — completed sprints are immutable by invariant.
+- Only offer non-archived releases as assignment targets — archived releases are closed.
+- Update local sprint state after PATCH instead of triggering a full `refresh()` — avoids collapsing expanded story panels.
+
+#### FE-17 Analytics Page — Velocity Chart Layout Bug + Missing Release Progress
+
+**Bug 1 — Velocity chart bars overflow / labels misplaced:**
+The flex container had `height: MAX_HEIGHT` but child `<div>` elements used absolute pixel heights that could exceed the container, causing the first bar to overflow its bounds and sprint name labels to appear mid-chart. Sprint 2 showed "0" label floating above a full-width base-line bar (the `::after` pseudo-element of `.vel-bar` rendered at 60% height even for zero-point bars). Sprint 3 with no velocity data showed "—" with no visual bar.
+
+**Root cause:** Three compounded issues:
+1. `height: MAX_HEIGHT` on the flex container didn't constrain children — the flex items could grow taller.
+2. Zero-point bars still rendered with `barH = 20` (the `pts > 0` branch was missing) — Planned/empty sprints got a tall ghost bar.
+3. Value labels used `position: static` inside the flex column so they pushed the bar down rather than floating above it.
+
+**Fix:**
+```tsx
+// Container: position relative so labels can use position:absolute above bars
+<div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: MAX_BAR_H, position: 'relative' }}>
+  {/* Baseline rule — visual bottom reference */}
+  <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 1, background: 'rgba(255,255,255,0.10)' }} />
+
+  {sprints.map(sp => {
+    const pts = velocities[sp.ID] ?? 0;
+    const isPlanned = sp.status === 'Planned';
+    // Planned → 4px token bar. Active/Completed → scale to MAX_BAR_H, min 8px if has pts
+    const barH = isPlanned ? 4 : Math.max(Math.round((pts / maxVelocity) * MAX_BAR_H), pts > 0 ? 8 : 4);
+    return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
+                    justifyContent: 'flex-end', height: '100%', position: 'relative' }}>
+        {/* Label floats above the bar using position:absolute + bottom offset */}
+        <span style={{ position: 'absolute', bottom: barH + 4, fontSize: 11, fontWeight: 600 }}>
+          {isPlanned ? '—' : pts}
+        </span>
+        <div className="vel-bar" style={{ height: barH, width: '100%', opacity: isPlanned ? 0.25 : 1 }} />
+      </div>
+    );
+  })}
+</div>
+{/* Sprint names in a separate row below, not inside the chart height */}
+<div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+  {sprints.map(sp => <div key={sp.ID} style={{ flex: 1, textAlign: 'center', fontSize: 10 }}>{sp.name}</div>)}
+</div>
+```
+
+**Bug 2 — No release progress analytics:**
+The page had no cross-context awareness of releases or their story composition.
+
+**Fix:** Fetch releases from `release` service and stories-per-release via `storiesByRelease` function, then render `ReleaseProgressCard` components below the sprint charts. Each card shows:
+- A linear progress bar coloured green/amber/red (≥80% / ≥50% / <50%)
+- `completed / total stories done` subtitle
+- Expandable list of `Critical` and `High` priority stories that are not yet `Completed`
+
+```tsx
+// Cross-context read — allowed. Fetch from release service, not analytics.
+api.list('release', 'Releases')                              // get all releases
+api.fn(`release/storiesByRelease(releaseId='${rel.ID}')`)   // per-release stories
+
+// High-risk filter (computed in render — no backend change needed)
+const highRisk = stories.filter(
+  s => (s.priority === 'Critical' || s.priority === 'High') && s.status !== 'Completed'
+);
+```
+
+**Key details:**
+- `priority` is available on `Stories` via both `analytics` and `release` service projections (wildcard `as projection on planning.Stories`).
+- Filter out archived releases before fetching — `storiesByRelease` on an archived release is valid but not useful for progress tracking.
+- Bar colour thresholds: ≥80% → `#22c55e`, ≥50% → `#f97316`, <50% → `#ef4444`.
+- Empty state: if no active releases exist, show a placeholder card prompting the user to create a release.
+
 ### Phase 2 Frontend: node_modules Must Be Gitignored
 
 `modern/ui/node_modules/` must not be staged. Ensure `modern/ui/.gitignore` exists before running `npm install`:
