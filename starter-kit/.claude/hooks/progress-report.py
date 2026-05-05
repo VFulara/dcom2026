@@ -419,6 +419,21 @@ def build_report(state, statuses, current_step, now, prompt_count):
 RUNNER_SCRIPT = SCRIPT_DIR.parent / "utility-scripts" / "progress-show.sh"
 
 
+def _is_display_already_running():
+    if sys.platform == "win32":
+        return False
+
+    try:
+        probe = subprocess.run(
+            ["pgrep", "-f", str(RUNNER_SCRIPT)],
+            capture_output=True,
+            text=True,
+        )
+        return probe.returncode == 0 and bool(probe.stdout.strip())
+    except Exception:
+        return False
+
+
 def _spawn_darwin():
     RUNNER_SCRIPT.chmod(0o755)
     subprocess.Popen(
@@ -453,6 +468,9 @@ def _spawn_linux():
 
 
 def spawn_terminal_display():
+    if _is_display_already_running():
+        return
+
     if sys.platform == "darwin":
         _spawn_darwin()
     elif sys.platform == "win32":
