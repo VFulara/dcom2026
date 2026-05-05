@@ -258,6 +258,61 @@ curl -s -X POST http://localhost:4004/odata/v4/sprint/Sprints \
   -d '{"name":"Test Sprint","status":"Active"}'
 ```
 
+### "Releases page loads but is blank — no buttons, no toolbar visible"
+
+**Root cause — two bugs, both required to fix:**
+
+**Bug 1 — `<Dialog>` at wrong level in view XML.** The `<Dialog>` was placed as a direct sibling of `<Page>` at the `<mvc:View>` root. OpenUI5 `View` has a single default content aggregation — two controls competing for it means `<Page>` is not rendered. Fix: move `<Dialog>` inside `<Page><dependents>`.
+
+**Bug 2 — Invalid OData `$expand` with inline `$count`, and spurious `$top`.** The table binding used `$expand: 'Sprints($count=true)'`, but CDS v6 does not support inline `$count` inside `$expand`. A `$top` parameter was also present — the UI5 OData v4 model with `autoExpandSelect: true` rejects `$top` in list binding parameters with `"System query option $top is not supported"`. Additionally, `Releases` had no back-association to `Sprints` in the service, so even `$expand=Sprints` would have returned a 400.
+
+**Fixes applied:**
+
+1. Moved `<Dialog>` inside `<Page><dependents>` in `ui/view/Releases.view.xml`
+2. Added `Sprints` back-association to the `Releases` projection in `srv/release-service.cds`:
+   ```cds
+   entity Releases as projection on planning.Releases {
+     *,
+     Sprints : Association to many Sprints on Sprints.release = $self
+   };
+   ```
+3. Changed table binding from `$expand: 'Sprints($count=true)', $top: 500` → `$expand: 'Sprints'` in the view
+4. Changed sprint count cell from `{release>Sprints/$count}` → `formatter: '.formatter.arrayLength'` 
+5. Added `arrayLength` formatter to `ui/util/Formatters.js`
+
+No restart needed after view/JS changes — save and refresh. CDS service restart is needed after `.cds` file changes.
+
+### "Sprint Analytics page is not reachable from the UI"
+
+**Root cause:** No navigation button to the `sprintAnalytics` route was wired up in any view. The page existed and was routable via direct URL (`http://localhost:4004/#/analytics`) but was unreachable through normal app flow. Fix: added a "Sprint Analytics" button to both the Backlog header (`ui/view/Backlog.view.xml`) and SprintBoard header (`ui/view/SprintBoard.view.xml`), with corresponding `onNavToAnalytics` handlers in both controllers.
+
+### "Assigning a story to a Completed sprint shows no error — change silently fails"
+
+**Root cause:** `oContext.setProperty()` fires a PATCH and returns a Promise, but `onStatusChange` and `onSprintChange` in `Backlog.controller.js` discarded it without `.catch()`. Server-side validation errors (e.g. "Cannot assign a story to a Completed sprint") were swallowed silently. Fix: chain `.catch()` on both handlers and call `oContext.refresh()` to revert the optimistic UI update.
+
+No restart needed — save and reproduce.
+
+### "Creating a release fails with IllegalArgumentError: Invalid value for targetDate"
+
+**Root cause:** `DatePicker.getValue()` returns the date in the user's locale format (e.g. `6/30/26`), but `Edm.Date` requires `YYYY-MM-DD`. Fix: use `getDateValue()` to get a JS `Date` object, then format it manually.
+
+```js
+// WRONG
+var sTargetDate = this.byId("releaseTargetDate").getValue(); // "6/30/26"
+
+// CORRECT
+var oDate = this.byId("releaseTargetDate").getDateValue();   // JS Date object
+var sTargetDate = oDate.getFullYear() + "-" +
+  String(oDate.getMonth() + 1).padStart(2, "0") + "-" +
+  String(oDate.getDate()).padStart(2, "0");                  // "2026-06-30"
+```
+
+Also reset with `setDateValue(null)` instead of `setValue("")` on cancel.
+
+
+
+**Not an error — ignore.** OpenUI5 always requests `Component-preload.js` as a load-time optimisation. When it gets a 404, it silently falls back to loading individual files. The MIME type warning is a side-effect of the 404 (CAP returns an HTML error page). The app is fully functional. No fix required; this is expected in any dev setup without a UI5 build step.
+
 ### "App shows blank page at localhost:4004"
 Check `ui/index.html` CDN URL — must be `1.120` not `1.120.x`:
 ```html
