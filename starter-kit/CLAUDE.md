@@ -423,12 +423,20 @@ Phase 3: Task Breakdown
   Action: /clear context after todo.md is written — plan is on disk
 
 Phase 4: Implementation
+  Pre-flight: invoke @lead-architect and @senior-app-developer in advisory mode first
+    → @lead-architect reads design.md → outputs architectural decision + 2 principles + 1 boundary (max 200 words)
+    → @senior-app-developer reads design.md → outputs 3 CAP patterns + 1 pitfall + 1 contract check (max 150 words)
+    These advisories run before /run-parallel-agents so the first implementation attempt is correct.
   Action: /run-parallel-agents — agents read specs as their brief
   Rule: agents never implement anything not in specs/<feature>/design.md
 
 Phase 5: Review Gate
   Order: @code-reviewer + @tech-evangelist (parallel) → @senior-app-developer → @lead-architect
   Rule: no merge before @lead-architect approves
+  Convergence: each reviewer tracks the pass number (Pass 1/2/3). Pass 3 forces approval
+    unless a security BLOCKER (code-reviewer), accessibility/data-binding BLOCKER (tech-evangelist),
+    hard contract mismatch (senior-app-developer), or DDD cross-context write (lead-architect) remains.
+  Fixing: each finding lists OPTION A (simplest) and OPTION B (idiomatic) — pick one and re-review.
 ```
 
 ---
@@ -439,10 +447,17 @@ Agents are invoked via `@` typeahead. Invoke review agents before every merge.
 
 | Agent | Invocation | Authority |
 |-------|-----------|-----------|
-| `@lead-architect` | `@lead-architect review specs/` or `@lead-architect review all changes` | Final say — can reject merge |
-| `@senior-app-developer` | `@senior-app-developer validate api contracts` | API contract authority |
-| `@code-reviewer` | `@code-reviewer review all changed files` | Code quality gate |
-| `@tech-evangelist` | `@tech-evangelist review frontend` | Frontend/UI5 quality gate |
+| `@lead-architect` | **Advisory (Phase 4 start):** `@lead-architect review design.md for implementation advisory` | Architectural decision + principles + boundary (max 200 words) |
+| `@lead-architect` | **Spec review:** `@lead-architect review specs/` | Final say on design — may interview user (max 2 questions) |
+| `@lead-architect` | **Code review:** `@lead-architect review all changes` | Final say — can reject merge; converges in 3 passes |
+| `@senior-app-developer` | **Advisory (Phase 4 start):** `@senior-app-developer review design.md for implementation advisory` | CAP patterns + pitfall + contract check (max 150 words) |
+| `@senior-app-developer` | **Code review:** `@senior-app-developer validate api contracts` | API contract authority; converges in 3 passes |
+| `@code-reviewer` | `@code-reviewer review all changed files` | Code quality gate; converges in 3 passes |
+| `@tech-evangelist` | `@tech-evangelist review frontend` | Frontend/UI5 quality gate; converges in 3 passes |
+
+**Phase 4 advisory invocation order:** `@lead-architect` and `@senior-app-developer` in advisory mode → `/run-parallel-agents`
+
+**Phase 5 review order:** `@code-reviewer` + `@tech-evangelist` in parallel → `@senior-app-developer` → `@lead-architect`
 
 Always run `@code-reviewer` and `@tech-evangelist` in parallel (separate terminals or `/run-parallel-agents`).
 Always run `@senior-app-developer` after those two.
