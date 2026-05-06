@@ -28,13 +28,13 @@ When the participant opens Claude Code in the planning-board directory, Claude s
 node --version   # must be v18+
 
 # 2. Check node_modules installed
-ls node_modules/@sap/cds 2>/dev/null || echo "NEEDS_INSTALL"
+node -e "require('@sap/cds')" && echo CDS_OK || echo NEEDS_INSTALL
 
 # 3. Check git is initialised
-ls .git 2>/dev/null || echo "NEEDS_GIT_INIT"
+node -e "require('fs').existsSync('.git') ? process.exit(0) : process.exit(1)" && echo GIT_OK || echo NEEDS_GIT_INIT
 
 # 4. Check seed data has proper UUIDs
-head -2 db/data/planning-Sprints.csv
+node -e "const l=require('fs').readFileSync('db/data/planning-Sprints.csv','utf8').split('\n'); console.log(l[0]); console.log(l[1]);"
 ```
 
 If any check fails, fix it proactively before the participant notices.
@@ -46,8 +46,8 @@ If any check fails, fix it proactively before the participant notices.
 ### Starting the App
 
 Preferred method — run the start script (kills port 4004 first):
-```bash
-./start-legacy.sh
+```bat
+start-legacy.bat
 ```
 
 Manual fallback:
@@ -67,8 +67,8 @@ git init && git add -A && git commit -m "initial starter kit"
 
 Ensure `worktrees/` is in `.gitignore`:
 ```bash
-grep -q "worktrees/" .gitignore || echo "worktrees/" >> .gitignore
-git add .gitignore && git commit -m "chore: ignore worktrees" 2>/dev/null || true
+node -e "const fs=require('fs'),p='.gitignore'; const c=fs.existsSync(p)?fs.readFileSync(p,'utf8'):''; if(!c.includes('worktrees/'))fs.writeFileSync(p,c+(c.endsWith('\n')?'':'\n')+'worktrees/\n')"
+git add .gitignore && git commit -m "chore: ignore worktrees" 2>NUL
 ```
 
 ---
@@ -629,8 +629,8 @@ git add modern/ui/.gitignore
 ### Phase 2 Verify: Two Apps Running Simultaneously
 
 Use the start script (leave legacy running in another terminal):
-```bash
-./start-modern.sh   # starts CDS v9 at port 4005 + Vite at port 5173
+```bat
+start-modern.bat   # opens two new PowerShell windows: CDS v9 at port 4005 + Vite at port 5173
 ```
 
 Or manually in two terminals:
@@ -652,10 +652,14 @@ npm install
 ```
 
 ### "cds watch says port in use"
-```bash
-./start-legacy.sh   # kills port 4004 automatically
-# or manually:
-lsof -i :4004 -t | xargs kill -9 && npx cds watch
+```bat
+start-legacy.bat   # kills port 4004 automatically
+# or manually in PowerShell:
+Get-NetTCPConnection -LocalPort 4004 -State Listen | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }; npx cds watch
+# if Get-NetTCPConnection is blocked by policy, use netstat fallback:
+# netstat -ano | findstr :4004  (note the PID in the last column)
+# taskkill /PID <pid> /F
+# npx cds watch
 ```
 
 ### "git merge says Already up to date"

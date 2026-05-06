@@ -10,57 +10,63 @@ Check which phase to run:
 
 Also verify:
 - `git` is initialised (`.git` directory exists). If not, run `git init && git add -A && git commit -m "initial"` first.
-- `worktrees/` is in `.gitignore`. If not, run `echo "worktrees/" >> .gitignore && git add .gitignore && git commit -m "chore: ignore worktrees"`.
+- `worktrees/` is in `.gitignore`. If not, add it using Node:
+  ```
+  node -e "const fs=require('fs'),p='.gitignore'; const c=fs.existsSync(p)?fs.readFileSync(p,'utf8'):''; if(!c.includes('worktrees/'))fs.writeFileSync(p,c+(c.endsWith('\n')?'':'\n')+'worktrees/\n')"
+  git add .gitignore
+  git commit -m "chore: ignore worktrees"
+  ```
 
 **Step 2 — Commit specs (if not already committed):**
-```bash
-git add specs/ && git status
-# If specs/ has changes, commit with the appropriate message:
-# Phase 1: git commit -m "add Phase 1 specs"
-# Phase 2: git commit -m "add Phase 2 specs"
-git commit -m "add specs" 2>/dev/null || true
 ```
+git add specs/
+git status
+git commit -m "add Phase 1 specs"
+```
+(Skip the commit if there is nothing to commit — that is not an error.)
 
 **Step 3 — Create worktrees (names depend on phase):**
 
 For **Phase 1**:
-```bash
+```
 git worktree add worktrees/feature-a -b feature/release-management
 git worktree add worktrees/feature-b -b feature/sprint-analytics
 ```
 
 For **Phase 2**:
-```bash
+```
 git worktree add worktrees/modernisation-a -b feature/modernisation-backend
 git worktree add worktrees/modernisation-b -b feature/modernisation-frontend
 ```
 
 **Step 4 — Copy shared context into each worktree:**
 
-For Phase 1 (worktree-a = `feature-a`, worktree-b = `feature-b`):
-```bash
-cp CLAUDE.md worktrees/feature-a/ && cp -r .claude worktrees/feature-a/
-cp CLAUDE.md worktrees/feature-b/ && cp -r .claude worktrees/feature-b/
+Use Node.js for the copy — it is always available on Windows, macOS, and Linux regardless of which shell Claude Code is using:
+
+For Phase 1:
+```
+node -e "const fs=require('fs'); ['worktrees/feature-a','worktrees/feature-b'].forEach(d=>{fs.copyFileSync('CLAUDE.md',d+'/CLAUDE.md'); fs.cpSync('.claude',d+'/.claude',{recursive:true});})"
 ```
 
-For Phase 2 (worktree-a = `modernisation-a`, worktree-b = `modernisation-b`):
-```bash
-cp CLAUDE.md worktrees/modernisation-a/ && cp -r .claude worktrees/modernisation-a/
-cp CLAUDE.md worktrees/modernisation-b/ && cp -r .claude worktrees/modernisation-b/
+For Phase 2:
 ```
+node -e "const fs=require('fs'); ['worktrees/modernisation-a','worktrees/modernisation-b'].forEach(d=>{fs.copyFileSync('CLAUDE.md',d+'/CLAUDE.md'); fs.cpSync('.claude',d+'/.claude',{recursive:true});})"
+```
+
+Note: `fs.cpSync` requires Node 16.7 or later. Run `node --version` to confirm. Node 18+ is a session prerequisite so this is always available.
 
 **Step 5 — Install node_modules in each worktree:**
 
 For Phase 1:
-```bash
-npm install --prefix worktrees/feature-a --silent 2>&1 | tail -2
-npm install --prefix worktrees/feature-b --silent 2>&1 | tail -2
+```
+npm install --prefix worktrees/feature-a --silent
+npm install --prefix worktrees/feature-b --silent
 ```
 
 For Phase 2:
-```bash
-npm install --prefix worktrees/modernisation-a --silent 2>&1 | tail -2
-npm install --prefix worktrees/modernisation-b --silent 2>&1 | tail -2
+```
+npm install --prefix worktrees/modernisation-a --silent
+npm install --prefix worktrees/modernisation-b --silent
 ```
 
 **Step 6 — Print launch instructions:**
@@ -73,12 +79,14 @@ For **Phase 1**, print exactly this block:
 ═══════════════════════════════════════════════════════════════
 
 TERMINAL 1 — Release Management + Backlog Enhancements (Agent A):
-  cd worktrees/feature-a && claude
+  cd worktrees/feature-a
+  claude
 
   Paste Prompt 05 from HANDSON.md
 
 TERMINAL 2 — Sprint Analytics (Agent B):
-  cd worktrees/feature-b && claude
+  cd worktrees/feature-b
+  claude
 
   Paste Prompt 06 from HANDSON.md
 
@@ -105,12 +113,14 @@ For **Phase 2**, print exactly this block:
 ═══════════════════════════════════════════════════════════════
 
 TERMINAL 1 — Backend Migration (Agent A):
-  cd worktrees/modernisation-a && claude
+  cd worktrees/modernisation-a
+  claude
 
   Paste Prompt 13 from HANDSON.md
 
 TERMINAL 2 — Frontend Rewrite (Agent B):
-  cd worktrees/modernisation-b && claude
+  cd worktrees/modernisation-b
+  claude
 
   Paste Prompt 14 from HANDSON.md
 

@@ -61,13 +61,13 @@ MAGENTA = "\033[35m"
 RED     = "\033[31m"
 WHITE   = "\033[97m"
 
-if sys.platform == "win32":
-    try:
-        import ctypes
-        kernel32 = ctypes.windll.kernel32
-        kernel32.SetConsoleMode(kernel32.GetStdHandle(-11), 7)
-    except Exception:
-        pass
+# Enable ANSI colour output in Windows console (requires Windows 10 1511+)
+try:
+    import ctypes
+    kernel32 = ctypes.windll.kernel32
+    kernel32.SetConsoleMode(kernel32.GetStdHandle(-11), 7)
+except Exception:
+    pass
 
 
 def load_state():
@@ -416,67 +416,28 @@ def build_report(state, statuses, current_step, now, prompt_count):
     return buf.getvalue()
 
 
-RUNNER_SCRIPT = SCRIPT_DIR.parent / "utility-scripts" / "progress-show.sh"
+RUNNER_SCRIPT = SCRIPT_DIR.parent / "utility-scripts" / "progress-show.ps1"
 
 
 def _is_display_already_running():
-    if sys.platform == "win32":
-        return False
-
-    try:
-        probe = subprocess.run(
-            ["pgrep", "-f", str(RUNNER_SCRIPT)],
-            capture_output=True,
-            text=True,
-        )
-        return probe.returncode == 0 and bool(probe.stdout.strip())
-    except Exception:
-        return False
-
-
-def _spawn_darwin():
-    RUNNER_SCRIPT.chmod(0o755)
-    subprocess.Popen(
-        ["open", "-a", "Terminal", str(RUNNER_SCRIPT)],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-    )
+    return False
 
 
 def _spawn_win32():
+    # Launch progress-show.ps1 in a new console window with auto-refresh.
+    # -ExecutionPolicy Bypass avoids blocking by restrictive system policies.
     subprocess.Popen(
-        ["powershell", "-NoExit", "-Command",
-         f'Get-Content "{REPORT_FILE}"; Read-Host "[press Enter to close]"'],
+        ["powershell", "-NoExit", "-ExecutionPolicy", "Bypass",
+         "-File", str(RUNNER_SCRIPT)],
         creationflags=0x00000010,  # CREATE_NEW_CONSOLE
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     )
 
 
-def _spawn_linux():
-    cmd = f'bash -c "clear; cat \\"{REPORT_FILE}\\"; echo; read -p \\"[press Enter to close]\\" x"'
-    for term, flag in [
-        ("gnome-terminal", "--"),
-        ("xterm",          "-e"),
-        ("konsole",        "-e"),
-        ("xfce4-terminal", "-e"),
-    ]:
-        if subprocess.run(["which", term], capture_output=True).returncode == 0:
-            subprocess.Popen(
-                [term, flag, cmd],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            )
-            return
-
-
 def spawn_terminal_display():
     if _is_display_already_running():
         return
-
-    if sys.platform == "darwin":
-        _spawn_darwin()
-    elif sys.platform == "win32":
-        _spawn_win32()
-    else:
-        _spawn_linux()
+    _spawn_win32()
 
 
 def display_mode():
