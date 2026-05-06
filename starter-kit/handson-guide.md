@@ -196,12 +196,435 @@ The shorthand creates a file-based DB that persists stale schema across restarts
 Agent B creates the `modern/ui/` React app. The legacy `ui/` directory must remain untouched.
 
 **File plan for Agent B:**
-- `modern/ui/package.json` — React 18, @ui5/webcomponents-react@2, Vite
+- `modern/ui/package.json` — React 18, @ui5/webcomponents-react@2, Vite 5, react-router-dom@6, TypeScript 5
 - `modern/ui/index.html` — Vite entry point
-- `modern/ui/vite.config.js` — proxy `/odata/v4/` → `http://localhost:4005`
-- `modern/ui/src/main.jsx` + components in `modern/ui/src/components/`
+- `modern/ui/vite.config.ts` — proxy `/odata` → `http://localhost:4005` with `changeOrigin: true`
+- `modern/ui/src/main.tsx` — ThemeProvider wrapping the app
+- `modern/ui/src/App.tsx` — routes: `/` Backlog, `/board` SprintBoard, `/releases` Releases, `/analytics` SprintAnalytics
+- `modern/ui/src/components/` — AppShell, Sidebar, PriorityBadge, StatusSelect
+- `modern/ui/src/pages/` — BacklogPage, SprintBoardPage, ReleasesPage, SprintAnalyticsPage
+- `modern/ui/src/utils/` — api.ts, filterHelper.ts, formatters.ts, constants.ts
+- `modern/ui/src/index.css` — Liquid Glass CSS custom properties and glass surface classes
 
 Without keeping legacy `ui/` intact, the legacy app at port 4004 breaks.
+
+### Phase 2 Frontend: Critical Patterns That Prevent Rework
+
+The following issues were discovered and fixed during the Phase 2 implementation review. Each took disproportionate time to debug. Pre-apply these patterns when generating the frontend — they are not obvious from the spec but are required for the implementation to be correct on the first attempt.
+
+#### FE-1 Vite Proxy — Do NOT Use URLSearchParams for OData query params
+
+```ts
+// WRONG — URLSearchParams encodes '$' to '%24', CAP's OData router returns 404
+const params = new URLSearchParams();
+params.set('$filter', filter);
+fetch(`/odata/v4/backlog/Stories?${params}`);
+
+// CORRECT — append $filter= as a literal prefix, encode only the value
+let url = `/odata/v4/backlog/Stories`;
+if (filter) url += `?$filter=${encodeURIComponent(filter)}`;
+fetch(url);
+```
+
+The same applies to `$expand`, `$orderby`, `$top`. Build the query string manually, never with URLSearchParams.
+
+#### FE-2 OData UUID Key Quoting
+
+CAP OData v4 requires single quotes around string/UUID key predicates. Without them, CAP returns 400.
+
+```ts
+// WRONG — unquoted key
+fetch(`/odata/v4/backlog/Stories(${id})`, { method: 'PATCH', ... });
+
+// CORRECT — single-quoted UUID
+fetch(`/odata/v4/backlog/Stories('${id}')`, { method: 'PATCH', ... });
+```
+
+Apply to all `PATCH`, `DELETE`, and single-entity `GET` calls.
+
+#### FE-3 $expand Required for Navigation Properties
+
+OData v4 never auto-expands navigation properties. `story.sprint?.name` will always be `undefined` unless `$expand=sprint` is appended to the Stories request.
+
+```ts
+// WRONG — sprint name is always undefined
+api.list('backlog', 'Stories');
+
+// CORRECT — request expansion explicitly
+api.list('backlog', 'Stories', filter, 'sprint');
+// produces: /odata/v4/backlog/Stories?$filter=...&$expand=sprint
+```
+
+The `api.list()` helper signature must accept an optional `expand` parameter.
+
+#### FE-4 useMemo for Filter State to Prevent Infinite useEffect Loops
+
+When a filter string is computed inline (not in `useMemo`), it produces a new string reference on every render, causing the `useEffect` that depends on it to fire on every render — an infinite loop of OData fetches.
+
+```ts
+// WRONG — new string reference on every render → infinite fetch loop
+const filter = toODataFilter(buildFilters(search, filterStatus, filterPriority, filterSprint));
+useEffect(() => { api.list(..., filter); }, [filter]);
+
+// CORRECT — only rebuilds when filter values actually change
+const filter = useMemo(
+  () => toODataFilter(buildFilters(search, filterStatus, filterPriority, filterSprint)),
+  [search, filterStatus, filterPriority, filterSprint],
+);
+useEffect(() => { api.list(..., filter); }, [filter]);
+```
+
+Apply `useMemo` to all derived filter/query strings used as `useEffect` dependencies.
+
+#### FE-5 OData Filter Construction — Always Use filterHelper, Never Template Literals
+
+Inline template literals in filter strings are a security risk (OData injection) and bypass the central `filterHelper.ts` module.
+
+```ts
+// WRONG — template literal, injection surface, bypasses filterHelper
+api.list('sprint', 'Stories', `sprint_ID eq '${selectedSprintId}'`);
+
+// CORRECT — typed helper produces validated OData expression
+const sprintFilter = useMemo(
+  () => toODataFilter([{ field: 'sprint_ID', operator: 'eq', value: selectedSprintId }]),
+  [selectedSprintId],
+);
+api.list('sprint', 'Stories', sprintFilter);
+```
+
+#### FE-6 DDD — Each Page Reads Only Its Own Bounded Context
+
+Every page must fetch data from its own OData service path. Fetching from a different bounded context is a DDD violation even if the entity exists there.
+
+| Page | Correct service | Common mistake |
+|------|----------------|---------------|
+| BacklogPage | `api.list('backlog', ...)` | — |
+| SprintBoardPage | `api.list('sprint', ...)` | — |
+| ReleasesPage | `api.list('release', ...)` | — |
+| SprintAnalyticsPage | `api.list('analytics', ...)` | `api.list('sprint', 'Sprints')` ← violation |
+
+The analytics service exposes `@readonly Sprints` and `@readonly Stories` — use those, not SprintService.
+
+#### FE-7 @ui5/webcomponents-react v2 Dialog API
+
+The v2 Dialog API differs from v1 in two ways that break at runtime if the v1 pattern is used:
+
+```tsx
+// WRONG (v1 patterns)
+<Dialog
+  aria-labelledby="dialog-title"      // NOT forwarded through shadow DOM
+  onClose={() => setOpen(false)}       // fires before animation completes, causes flicker
+>
+
+// CORRECT (v2 patterns)
+<Dialog
+  accessibleNameRef="dialog-title"    // maps to WC accessible-name-ref attribute
+  // @ts-expect-error onAfterClose is the correct v2 after-animation event (spec §3.8); types lag the runtime
+  onAfterClose={() => setOpen(false)} // fires after close animation completes
+>
+  <div slot="header" id="dialog-title">Title</div>
+```
+
+The `// @ts-expect-error` is intentional — `@ui5/webcomponents-react` v2.21.3 types expose `onClose` but the correct runtime event is `onAfterClose`. The comment must document this so reviewers do not remove it.
+
+#### FE-8 storiesByRelease Response Unwrap
+
+`storiesByRelease` is an OData bound function returning `array of Stories`. CAP wraps collection function responses as `{ "value": [...] }`. The incorrect unwrap pattern discards all results.
+
+```ts
+// WRONG — may evaluate to a single object, not the array
+const stories = (result as any).value ?? (result as any);
+
+// CORRECT — destructure with default
+const { value: stories = [] } = result as { value: Story[] };
+```
+
+#### FE-9 React CSSProperties Type — No React Namespace Without Import
+
+With `"jsx": "react-jsx"` (Vite default), the `React` namespace is not available without an explicit import. Type annotations must use the named import.
+
+```ts
+// WRONG — React is not in scope with automatic JSX transform
+const sidebarStyle: React.CSSProperties = { ... };
+
+// CORRECT
+import type { CSSProperties } from 'react';
+const sidebarStyle: CSSProperties = { ... };
+```
+
+#### FE-10 Constants Centralisation — STATUS_OPTIONS and PRIORITY_OPTIONS
+
+Status and priority arrays must be defined once in `src/utils/constants.ts` and imported everywhere. Defining them inline per component is an AP-4 DRY violation.
+
+```ts
+// src/utils/constants.ts — single source of truth
+export const STATUS_OPTIONS = ['New', 'In Progress', 'In Review', 'Blocked', 'Completed'] as const;
+export const PRIORITY_OPTIONS = ['Critical', 'High', 'Medium', 'Low'] as const;
+```
+
+The filter dropdowns render `<option value="">All Statuses</option>` separately — `STATUS_OPTIONS` must NOT contain an empty string.
+
+#### FE-11 Accessibility — Label/Control Association in All Dialog Forms
+
+Every `<label>` in a dialog form must have a `htmlFor` attribute matching the control's `id`. Missing associations cause screen readers to announce unlabelled fields. This applies to ALL form fields, not just the title field.
+
+```tsx
+// WRONG — orphaned label
+<label style={...}>Version *</label>
+<input className="form-input" value={newVersion} onChange={...} />
+
+// CORRECT
+<label htmlFor="new-release-version" style={...}>Version *</label>
+<input id="new-release-version" className="form-input" value={newVersion} onChange={...} />
+```
+
+Apply `htmlFor`/`id` pairs to every `<label>`+control pair across all dialog forms: BacklogPage (Title, Priority, Points, Assignee, Sprint), SprintBoardPage (Move to sprint), ReleasesPage (Version, Target Date).
+
+#### FE-12 Accessibility — No Interactive Elements Nested Inside role="button"
+
+A native `<button>` inside a `role="button"` div is a WCAG 4.1.2 violation. Screen readers expose conflicting roles and keyboard focus is broken.
+
+```tsx
+// WRONG — native <button> nested inside role="button" div
+<div role="button" onClick={toggleExpand}>
+  ...
+  <button onClick={openArchive}>Archive</button>  // violation
+</div>
+
+// CORRECT — plain div row, both interactive affordances are sibling native buttons
+<div style={{ display: 'flex', alignItems: 'center' }}>
+  ...
+  <button aria-label={`Archive release ${release.version}`} onClick={openArchive}>Archive</button>
+  <button aria-expanded={isExpanded} aria-controls={panelId}
+          aria-label={`${isExpanded ? 'Collapse' : 'Expand'} release ${release.version}`}
+          onClick={toggleExpand}>▼</button>
+</div>
+```
+
+#### FE-13 Accessibility — focus-visible Outlines Required
+
+`.btn`, `.status-select`, and `.form-input` must all have a `:focus-visible` outline meeting WCAG 1.4.11 Non-text Contrast 3:1. `outline: none` without a compensating high-contrast indicator is a keyboard accessibility failure.
+
+```css
+.form-input { outline: none; }                               /* suppress default ring */
+.form-input:focus-visible    { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn:focus-visible           { outline: 2px solid var(--accent); outline-offset: 2px; }
+.status-select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+```
+
+#### FE-14 Inline Sprint Assignment Missing from Backlog Row (migration regression)
+
+**Bug:** The legacy app allows changing a story's sprint directly from the backlog row via an inline select (`onSprintChange` in `Backlog.controller.js`). When migrating to React, the sprint column was rendered as static text (`story.sprint?.name ?? '—'`), silently dropping this capability.
+
+**Root cause:** The `StatusSelect` component pattern was not applied to the sprint column. Sprint is an editable FK on Story just like status — it needs the same optimistic-UI + PATCH pattern.
+
+**Fix:** Create `src/components/SprintSelect.tsx` and replace the static sprint cell in `BacklogPage.tsx`:
+
+```tsx
+// src/components/SprintSelect.tsx
+interface SprintSelectProps {
+  storyId: string;
+  currentSprintId: string | undefined;
+  sprints: Sprint[];
+  onUpdated: () => void;
+}
+
+export default function SprintSelect({ storyId, currentSprintId, sprints, onUpdated }) {
+  const [value, setValue] = useState(currentSprintId ?? '');
+  // ... same optimistic-UI pattern as StatusSelect
+  async function handleChange(newSprintId: string) {
+    await api.patch('backlog', 'Stories', storyId, { sprint_ID: newSprintId || null });
+    setValue(newSprintId);
+    onUpdated();
+  }
+  return (
+    <select className="status-select" value={value} onChange={e => handleChange(e.target.value)}>
+      <option value="">— No Sprint —</option>
+      {sprints.map(sp => <option key={sp.ID} value={sp.ID}>{sp.name}</option>)}
+    </select>
+  );
+}
+```
+
+```tsx
+// BacklogPage.tsx — replace static sprint cell in the row
+// WRONG (static text — loses inline editing):
+<div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+  {story.sprint?.name ?? '—'}
+</div>
+
+// CORRECT — editable inline select using already-loaded sprints list:
+<SprintSelect
+  storyId={story.ID}
+  currentSprintId={story.sprint_ID}
+  sprints={sprints}
+  onUpdated={refresh}
+/>
+```
+
+**Key details:**
+- Pass `null` (not `undefined`) when clearing a sprint: `sprint_ID: newSprintId || null` — CAP OData PATCH treats `null` as explicit unset; omitting the key is a no-op.
+- The sprints list is already fetched by `BacklogPage` for filters — pass it as a prop, do not re-fetch in `SprintSelect`.
+- `currentSprintId` comes from `story.sprint_ID`, not `story.sprint?.ID` — the latter requires `$expand=sprint` and may be undefined before expansion resolves.
+
+#### FE-15 Inline Assignee Editing Missing from Backlog Row (migration regression)
+
+**Bug:** The legacy backlog row renders `{assignee}` as read-only text. The modern app migrated this faithfully — but the assignee column became even less useful as static text with no affordance to edit. Users had no way to change a story's assignee from the backlog.
+
+**Root cause:** No editable component was created for the `assignee` free-text field. Unlike `status` and `sprint` (which are selects), assignee is a plain text field requiring a different pattern: commit-on-blur/Enter, revert-on-Escape.
+
+**Fix:** Create `src/components/AssigneeInput.tsx` and replace the static assignee cell in `BacklogPage.tsx`:
+
+```tsx
+// src/components/AssigneeInput.tsx
+export default function AssigneeInput({ storyId, currentAssignee, onUpdated }) {
+  const [value, setValue] = useState(currentAssignee ?? '');
+  const committed = useRef(currentAssignee ?? '');
+
+  async function commit(newValue: string) {
+    const trimmed = newValue.trim();
+    if (trimmed === committed.current) return;  // no-op if unchanged
+    await api.patch('backlog', 'Stories', storyId, { assignee: trimmed || null });
+    committed.current = trimmed;
+    onUpdated();
+  }
+
+  return (
+    <input
+      className="form-input"
+      value={value}
+      onChange={e => setValue(e.target.value)}
+      onBlur={e => commit(e.target.value)}
+      onKeyDown={e => {
+        if (e.key === 'Enter')  e.currentTarget.blur();        // triggers commit via onBlur
+        if (e.key === 'Escape') { setValue(committed.current); e.currentTarget.blur(); }
+      }}
+    />
+  );
+}
+```
+
+**Key details:**
+- Use `committed` ref (not state) to track the last-saved value — avoids a stale-closure bug where the reverted value itself triggers another PATCH.
+- Commit on `blur`, not on every `onChange` — avoids a PATCH per keystroke.
+- Pass `null` when clearing: `assignee: trimmed || null`.
+- Guard `if (trimmed === committed.current) return` — prevents a redundant PATCH when the user clicks away without changing anything.
+
+#### FE-16 Sprint → Release Assignment Missing from Releases Page (feature gap)
+
+**Bug:** The modern Releases page showed release cards with no way to assign sprints to a release. The legacy app's Releases table used `$expand: 'Sprints'` to show a sprint count per release, but neither app provided a direct assignment UI. The `Sprint` entity has a `release_ID` FK, so assigning a sprint to a release is a Sprint aggregate mutation — it must go through `SprintService`, not `ReleaseService` (which exposes Sprints `@readonly`).
+
+**Root cause:** No sprint assignment UI was built on the Releases page. The `ReleaseService` correctly marks `Sprints` as `@readonly` (DDD cross-context read), but the PATCH to `release_ID` must target `/odata/v4/sprint/Sprints('id')`.
+
+**Fix:** Add a "Sprint → Release Assignment" section below the release cards in `ReleasesPage.tsx`:
+
+```tsx
+// Fetch sprints from ReleaseService (read-only cross-context view — just for display)
+api.list('release', 'Sprints')  // fetches all sprints with their release_ID
+
+// Assign sprint to release — PATCH goes through SprintService (sprint aggregate owner)
+async function handleSprintAssign(sprintId: string, releaseId: string) {
+  await api.patch('sprint', 'Sprints', sprintId, { release_ID: releaseId || null });
+  // update local state optimistically — no full refresh needed
+  setSprints(prev => prev.map(s => s.ID === sprintId
+    ? { ...s, release_ID: releaseId || undefined } : s));
+}
+
+// Render: one row per non-Completed sprint, a <select> over non-archived releases
+<select value={sprint.release_ID ?? ''} onChange={e => handleSprintAssign(sprint.ID, e.target.value)}>
+  <option value="">— No Release —</option>
+  {releases.filter(r => !r.archived).map(r => <option key={r.ID} value={r.ID}>{r.version}</option>)}
+</select>
+```
+
+**Key details:**
+- Read sprints from `release` service (`/odata/v4/release/Sprints`) — this is the `@readonly` cross-context projection, correct for display.
+- Write (PATCH) goes to `sprint` service (`/odata/v4/sprint/Sprints`) — the sprint aggregate owner. Using `release` service for a PATCH would violate DDD (cross-context write).
+- Only show non-`Completed` sprints in the assignment list — completed sprints are immutable by invariant.
+- Only offer non-archived releases as assignment targets — archived releases are closed.
+- Update local sprint state after PATCH instead of triggering a full `refresh()` — avoids collapsing expanded story panels.
+
+#### FE-17 Analytics Page — Velocity Chart Layout Bug + Missing Release Progress
+
+**Bug 1 — Velocity chart bars overflow / labels misplaced:**
+The flex container had `height: MAX_HEIGHT` but child `<div>` elements used absolute pixel heights that could exceed the container, causing the first bar to overflow its bounds and sprint name labels to appear mid-chart. Sprint 2 showed "0" label floating above a full-width base-line bar (the `::after` pseudo-element of `.vel-bar` rendered at 60% height even for zero-point bars). Sprint 3 with no velocity data showed "—" with no visual bar.
+
+**Root cause:** Three compounded issues:
+1. `height: MAX_HEIGHT` on the flex container didn't constrain children — the flex items could grow taller.
+2. Zero-point bars still rendered with `barH = 20` (the `pts > 0` branch was missing) — Planned/empty sprints got a tall ghost bar.
+3. Value labels used `position: static` inside the flex column so they pushed the bar down rather than floating above it.
+
+**Fix:**
+```tsx
+// Container: position relative so labels can use position:absolute above bars
+<div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: MAX_BAR_H, position: 'relative' }}>
+  {/* Baseline rule — visual bottom reference */}
+  <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 1, background: 'rgba(255,255,255,0.10)' }} />
+
+  {sprints.map(sp => {
+    const pts = velocities[sp.ID] ?? 0;
+    const isPlanned = sp.status === 'Planned';
+    // Planned → 4px token bar. Active/Completed → scale to MAX_BAR_H, min 8px if has pts
+    const barH = isPlanned ? 4 : Math.max(Math.round((pts / maxVelocity) * MAX_BAR_H), pts > 0 ? 8 : 4);
+    return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
+                    justifyContent: 'flex-end', height: '100%', position: 'relative' }}>
+        {/* Label floats above the bar using position:absolute + bottom offset */}
+        <span style={{ position: 'absolute', bottom: barH + 4, fontSize: 11, fontWeight: 600 }}>
+          {isPlanned ? '—' : pts}
+        </span>
+        <div className="vel-bar" style={{ height: barH, width: '100%', opacity: isPlanned ? 0.25 : 1 }} />
+      </div>
+    );
+  })}
+</div>
+{/* Sprint names in a separate row below, not inside the chart height */}
+<div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+  {sprints.map(sp => <div key={sp.ID} style={{ flex: 1, textAlign: 'center', fontSize: 10 }}>{sp.name}</div>)}
+</div>
+```
+
+**Bug 2 — No release progress analytics:**
+The page had no cross-context awareness of releases or their story composition.
+
+**Fix:** Fetch releases from `release` service and stories-per-release via `storiesByRelease` function, then render `ReleaseProgressCard` components below the sprint charts. Each card shows:
+- A linear progress bar coloured green/amber/red (≥80% / ≥50% / <50%)
+- `completed / total stories done` subtitle
+- Expandable list of `Critical` and `High` priority stories that are not yet `Completed`
+
+```tsx
+// Cross-context read — allowed. Fetch from release service, not analytics.
+api.list('release', 'Releases')                              // get all releases
+api.fn(`release/storiesByRelease(releaseId='${rel.ID}')`)   // per-release stories
+
+// High-risk filter (computed in render — no backend change needed)
+const highRisk = stories.filter(
+  s => (s.priority === 'Critical' || s.priority === 'High') && s.status !== 'Completed'
+);
+```
+
+**Key details:**
+- `priority` is available on `Stories` via both `analytics` and `release` service projections (wildcard `as projection on planning.Stories`).
+- Filter out archived releases before fetching — `storiesByRelease` on an archived release is valid but not useful for progress tracking.
+- Bar colour thresholds: ≥80% → `#22c55e`, ≥50% → `#f97316`, <50% → `#ef4444`.
+- Empty state: if no active releases exist, show a placeholder card prompting the user to create a release.
+
+### Phase 2 Frontend: node_modules Must Be Gitignored
+
+`modern/ui/node_modules/` must not be staged. Ensure `modern/ui/.gitignore` exists before running `npm install`:
+
+```
+node_modules/
+dist/
+```
+
+If `node_modules` is accidentally staged, unstage it before committing:
+```bash
+git reset HEAD modern/ui/node_modules/
+echo "node_modules/" >> modern/ui/.gitignore
+echo "dist/" >> modern/ui/.gitignore
+git add modern/ui/.gitignore
+```
 
 ### Phase 2 Verify: Two Apps Running Simultaneously
 
@@ -258,6 +681,61 @@ curl -s -X POST http://localhost:4004/odata/v4/sprint/Sprints \
   -d '{"name":"Test Sprint","status":"Active"}'
 ```
 
+### "Releases page loads but is blank — no buttons, no toolbar visible"
+
+**Root cause — two bugs, both required to fix:**
+
+**Bug 1 — `<Dialog>` at wrong level in view XML.** The `<Dialog>` was placed as a direct sibling of `<Page>` at the `<mvc:View>` root. OpenUI5 `View` has a single default content aggregation — two controls competing for it means `<Page>` is not rendered. Fix: move `<Dialog>` inside `<Page><dependents>`.
+
+**Bug 2 — Invalid OData `$expand` with inline `$count`, and spurious `$top`.** The table binding used `$expand: 'Sprints($count=true)'`, but CDS v6 does not support inline `$count` inside `$expand`. A `$top` parameter was also present — the UI5 OData v4 model with `autoExpandSelect: true` rejects `$top` in list binding parameters with `"System query option $top is not supported"`. Additionally, `Releases` had no back-association to `Sprints` in the service, so even `$expand=Sprints` would have returned a 400.
+
+**Fixes applied:**
+
+1. Moved `<Dialog>` inside `<Page><dependents>` in `ui/view/Releases.view.xml`
+2. Added `Sprints` back-association to the `Releases` projection in `srv/release-service.cds`:
+   ```cds
+   entity Releases as projection on planning.Releases {
+     *,
+     Sprints : Association to many Sprints on Sprints.release = $self
+   };
+   ```
+3. Changed table binding from `$expand: 'Sprints($count=true)', $top: 500` → `$expand: 'Sprints'` in the view
+4. Changed sprint count cell from `{release>Sprints/$count}` → `formatter: '.formatter.arrayLength'` 
+5. Added `arrayLength` formatter to `ui/util/Formatters.js`
+
+No restart needed after view/JS changes — save and refresh. CDS service restart is needed after `.cds` file changes.
+
+### "Sprint Analytics page is not reachable from the UI"
+
+**Root cause:** No navigation button to the `sprintAnalytics` route was wired up in any view. The page existed and was routable via direct URL (`http://localhost:4004/#/analytics`) but was unreachable through normal app flow. Fix: added a "Sprint Analytics" button to both the Backlog header (`ui/view/Backlog.view.xml`) and SprintBoard header (`ui/view/SprintBoard.view.xml`), with corresponding `onNavToAnalytics` handlers in both controllers.
+
+### "Assigning a story to a Completed sprint shows no error — change silently fails"
+
+**Root cause:** `oContext.setProperty()` fires a PATCH and returns a Promise, but `onStatusChange` and `onSprintChange` in `Backlog.controller.js` discarded it without `.catch()`. Server-side validation errors (e.g. "Cannot assign a story to a Completed sprint") were swallowed silently. Fix: chain `.catch()` on both handlers and call `oContext.refresh()` to revert the optimistic UI update.
+
+No restart needed — save and reproduce.
+
+### "Creating a release fails with IllegalArgumentError: Invalid value for targetDate"
+
+**Root cause:** `DatePicker.getValue()` returns the date in the user's locale format (e.g. `6/30/26`), but `Edm.Date` requires `YYYY-MM-DD`. Fix: use `getDateValue()` to get a JS `Date` object, then format it manually.
+
+```js
+// WRONG
+var sTargetDate = this.byId("releaseTargetDate").getValue(); // "6/30/26"
+
+// CORRECT
+var oDate = this.byId("releaseTargetDate").getDateValue();   // JS Date object
+var sTargetDate = oDate.getFullYear() + "-" +
+  String(oDate.getMonth() + 1).padStart(2, "0") + "-" +
+  String(oDate.getDate()).padStart(2, "0");                  // "2026-06-30"
+```
+
+Also reset with `setDateValue(null)` instead of `setValue("")` on cancel.
+
+
+
+**Not an error — ignore.** OpenUI5 always requests `Component-preload.js` as a load-time optimisation. When it gets a 404, it silently falls back to loading individual files. The MIME type warning is a side-effect of the 404 (CAP returns an HTML error page). The app is fully functional. No fix required; this is expected in any dev setup without a UI5 build step.
+
 ### "App shows blank page at localhost:4004"
 Check `ui/index.html` CDN URL — must be `1.120` not `1.120.x`:
 ```html
@@ -267,11 +745,67 @@ src="https://sdk.openui5.org/1.120/resources/sap-ui-core.js"
 No restart needed — save and refresh.
 
 ### "OData proxy not working on localhost:5173"
-Check `modern/ui/vite.config.js` has:
-```js
-server: { proxy: { '/odata': 'http://localhost:4005' } }
+Check `modern/ui/vite.config.ts` has:
+```ts
+server: { proxy: { '/odata': { target: 'http://localhost:4005', changeOrigin: true } } }
 ```
 Also ensure modern CDS backend is running on localhost:4005 (`cd modern && npx cds watch`).
+
+### "story.sprint?.name is always undefined in BacklogPage"
+The Stories fetch is missing `$expand=sprint`. Fix in `api.list` call:
+```ts
+api.list('backlog', 'Stories', filter || undefined, 'sprint')
+```
+The `api.list()` helper must accept a 4th `expand` argument that appends `&$expand=sprint` to the URL.
+
+### "BacklogPage keeps refetching in an infinite loop"
+The filter string is being rebuilt on every render. Wrap it in `useMemo`:
+```ts
+const filter = useMemo(
+  () => toODataFilter(buildFilters(search, filterStatus, filterPriority, filterSprint)),
+  [search, filterStatus, filterPriority, filterSprint],
+);
+```
+
+### "PATCH / DELETE returns 400: Expected quoted string literal"
+The UUID key is not single-quoted. Fix the `api.patch()` call:
+```ts
+// WRONG: Entity(${id})
+// CORRECT: Entity('${id}')
+fetch(`/odata/v4/${service}/${entity}('${id}')`, { method: 'PATCH', ... })
+```
+
+### "SprintAnalyticsPage shows no sprints / fetches from wrong service"
+`api.list('sprint', 'Sprints')` is a DDD cross-context violation. Change to:
+```ts
+api.list('analytics', 'Sprints')
+```
+`AnalyticsService` exposes `@readonly Sprints` — use that, not SprintService.
+
+### "TypeScript error: React.CSSProperties is not defined"
+With Vite's automatic JSX transform (`"jsx": "react-jsx"`), the `React` namespace is not in scope. Use named import:
+```ts
+import type { CSSProperties } from 'react';
+const myStyle: CSSProperties = { ... };
+```
+
+### "Dialog title not announced by screen reader"
+`aria-labelledby` is not forwarded through the Shadow DOM of `<ui5-dialog>`. Use `accessibleNameRef` instead:
+```tsx
+// WRONG
+<Dialog aria-labelledby="my-title">
+// CORRECT
+<Dialog accessibleNameRef="my-title">
+  <div slot="header" id="my-title">...</div>
+```
+
+### "Dialog flickers / state resets on close"
+`onClose` fires mid-animation. Use `onAfterClose` (fires after animation completes):
+```tsx
+// @ts-expect-error onAfterClose is the correct v2 after-animation event (spec §3.8); types lag the runtime
+onAfterClose={() => setOpen(false)}
+```
+The `@ts-expect-error` is intentional — v2 runtime supports `onAfterClose` but the type definitions lag.
 
 ---
 
