@@ -46,14 +46,19 @@ while ($true) {
     Write-Host ""
     Write-Host "[auto-refresh: 1s]  Press Q to close" -ForegroundColor DarkGray
 
-    # Non-blocking key check: consume all queued keys, act on Q
+    # Non-blocking key check: consume all queued keys, act on Q.
+    # Wrapped in try/catch because [Console]::KeyAvailable throws
+    # InvalidOperationException when stdin is redirected or the console
+    # handle is not fully initialised (common on freshly spawned windows).
     $quit = $false
-    while ([Console]::KeyAvailable) {
-        $key = [Console]::ReadKey($true)
-        if ($key.KeyChar -eq 'q' -or $key.KeyChar -eq 'Q') {
-            $quit = $true
+    try {
+        while ([Console]::KeyAvailable) {
+            $key = [Console]::ReadKey($true)
+            if ($key.KeyChar -eq 'q' -or $key.KeyChar -eq 'Q') {
+                $quit = $true
+            }
         }
-    }
+    } catch { }
     if ($quit) { break }
 
     Start-Sleep -Milliseconds 1000

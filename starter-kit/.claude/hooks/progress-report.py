@@ -416,28 +416,54 @@ def build_report(state, statuses, current_step, now, prompt_count):
     return buf.getvalue()
 
 
-RUNNER_SCRIPT = SCRIPT_DIR.parent / "utility-scripts" / "progress-show.ps1"
+RUNNER_SCRIPT   = SCRIPT_DIR.parent / "utility-scripts" / "progress-widget.py"
+WIDGET_PID_FILE = PROJECT_ROOT / ".progress-widget.pid"
 
 
-def _is_display_already_running():
+def _is_widget_running():
+    """Return True if the widget process recorded in WIDGET_PID_FILE is alive."""
+    if not WIDGET_PID_FILE.exists():
+        return False
+    try:
+        pid = int(WIDGET_PID_FILE.read_text(encoding="utf-8").strip())
+        # PROCESS_QUERY_LIMITED_INFORMATION (0x1000) requires no elevation.
+        import ctypes
+        handle = ctypes.windll.kernel32.OpenProcess(0x1000, False, pid)
+        if handle:
+            ctypes.windll.kernel32.CloseHandle(handle)
+            return True
+    except Exception:
+        pass
+    try:
+        WIDGET_PID_FILE.unlink()
+    except OSError:
+        pass
     return False
 
 
 def _spawn_win32():
-    # Launch progress-show.ps1 in a new console window with auto-refresh.
-    # -ExecutionPolicy Bypass avoids blocking by restrictive system policies.
-    subprocess.Popen(
-        ["powershell", "-NoExit", "-ExecutionPolicy", "Bypass",
-         "-File", str(RUNNER_SCRIPT)],
-        creationflags=0x00000010,  # CREATE_NEW_CONSOLE
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-    )
+    if _is_widget_running():
+        return
+    # Use pythonw.exe (GUI runtime, no console window) when available.
+    # Fall back to python.exe with CREATE_NO_WINDOW (0x08000000).
+    # Neither requires elevated rights — standard user can always spawn a GUI.
+    pythonw = Path(sys.executable).with_name("pythonw.exe")
+    if pythonw.exists():
+        subprocess.Popen([str(pythonw), str(RUNNER_SCRIPT)])
+    else:
+        subprocess.Popen(
+            [sys.executable, str(RUNNER_SCRIPT)],
+            creationflags=0x08000000,   # CREATE_NO_WINDOW
+        )
 
 
 def spawn_terminal_display():
-    if _is_display_already_running():
+    if sys.platform != "win32":
         return
-    _spawn_win32()
+    try:
+        _spawn_win32()
+    except Exception:
+        pass
 
 
 def display_mode():
@@ -447,6 +473,8 @@ def display_mode():
     output = build_report(state, statuses, current_step, now,
                           state.get("prompt_count", 0))
     REPORT_FILE.write_text(output, encoding="utf-8")
+    state["statuses"] = dict(statuses)
+    save_state(state)
     spawn_terminal_display()
 
 
@@ -472,6 +500,10 @@ def hook_mode():
 
     output = build_report(state, statuses, current_step, now, prompt_count)
     REPORT_FILE.write_text(output, encoding="utf-8")
+
+    # Persist statuses so the desktop widget is a pure JSON reader — no git
+    # or filesystem checks needed in the widget process.
+    state["statuses"] = dict(statuses)
 
     if milestone_hit:
         spawn_terminal_display()

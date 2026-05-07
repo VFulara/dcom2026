@@ -1,1 +1,1 @@
-Run the shell command `python3 .claude/hooks/progress-report.py --display` to open the progress report in a new PowerShell window. Reply with only one line: "Progress report opened in a new terminal window."
+Run the shell command `python3 .claude/hooks/progress-report.py --display` to show the current session progress. Reply with only one line: "Progress report displayed."
