@@ -69,6 +69,23 @@ npm install --prefix worktrees/modernisation-a --silent
 npm install --prefix worktrees/modernisation-b --silent
 ```
 
+**Step 5b — Phase 2 only: Pre-install modern/ dependencies in each worktree:**
+
+This step moves the `npm install` for `modern/` and `modern/ui/` out of the agent's critical path.
+The `modern/package.json` and `modern/ui/package.json` stubs are already present in the worktrees.
+Run both installs now so agents can skip them and go straight to code generation.
+
+```
+npm install --prefix worktrees/modernisation-a/modern --silent
+npm install --prefix worktrees/modernisation-b/modern/ui --silent --legacy-peer-deps
+```
+
+Print to the user while this runs:
+```
+Installing CDS v9 and React dependencies — this takes 5–8 minutes.
+While you wait, re-read specs/modernisation/design.md so you know what each agent will produce.
+```
+
 **Step 6 — Print launch instructions:**
 
 For **Phase 1**, print exactly this block:
@@ -80,15 +97,25 @@ For **Phase 1**, print exactly this block:
 
 TERMINAL 1 — Release Management + Backlog Enhancements (Agent A):
   cd worktrees/feature-a
-  claude
 
-  Paste Prompt 05 from HANDSON.md
+  FAST PATH (no prompt pasting — runs automatically):
+    Windows CMD:  .claude\scripts\launch-agent-a.bat
+    macOS/Linux:  bash .claude/scripts/launch-agent-a.sh
+
+  CLASSIC PATH (manual — if fast path unavailable):
+    claude
+    → then paste Prompt 05 from the participant guide
 
 TERMINAL 2 — Sprint Analytics (Agent B):
   cd worktrees/feature-b
-  claude
 
-  Paste Prompt 06 from HANDSON.md
+  FAST PATH:
+    Windows CMD:  .claude\scripts\launch-agent-b.bat
+    macOS/Linux:  bash .claude/scripts/launch-agent-b.sh
+
+  CLASSIC PATH:
+    claude
+    → then paste Prompt 06 from the participant guide
 
 While agents are running:
   Read specs/feature-enhancement/design.md — know what each agent should produce.
@@ -112,17 +139,30 @@ For **Phase 2**, print exactly this block:
   PHASE 2 AGENTS READY — Open two terminal windows
 ═══════════════════════════════════════════════════════════════
 
+  Note: node_modules for modern/ and modern/ui/ are pre-installed.
+  Agents skip npm install and go straight to code generation.
+
 TERMINAL 1 — Backend Migration (Agent A):
   cd worktrees/modernisation-a
-  claude
 
-  Paste Prompt 13 from HANDSON.md
+  FAST PATH (no prompt pasting — runs automatically):
+    Windows CMD:  .claude\scripts\launch-modernisation-a.bat
+    macOS/Linux:  bash .claude/scripts/launch-modernisation-a.sh
+
+  CLASSIC PATH (manual — if fast path unavailable):
+    claude
+    → then paste Prompt 13 from the participant guide
 
 TERMINAL 2 — Frontend Rewrite (Agent B):
   cd worktrees/modernisation-b
-  claude
 
-  Paste Prompt 14 from HANDSON.md
+  FAST PATH:
+    Windows CMD:  .claude\scripts\launch-modernisation-b.bat
+    macOS/Linux:  bash .claude/scripts/launch-modernisation-b.sh
+
+  CLASSIC PATH:
+    claude
+    → then paste Prompt 14 from the participant guide
 
 While agents are running:
   Read specs/modernisation/design.md — know what each agent should produce.

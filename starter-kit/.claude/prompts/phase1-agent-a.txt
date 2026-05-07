@@ -1,0 +1,50 @@
+<context>
+  Planning board: SAP CAP v6, sqlite3, OpenUI5 1.120.
+  The app already has two bounded context services:
+    BacklogService at /odata/v4/backlog/ — owns Story aggregate
+    SprintService  at /odata/v4/sprint/  — owns Sprint aggregate
+  Your task: implement Feature A (Release Management).
+  Feature A scope: specs/feature-enhancement/design.md under "Feature A".
+  Your task list: specs/feature-enhancement/todo.md under "Agent A".
+  File ownership: CLAUDE.md section "Parallel Agent File Ownership" — Agent A files.
+</context>
+<task>
+  Implement every item in your Agent A task list.
+  Do not implement anything from Agent B's task list.
+  After implementing, run `cds watch` and verify the service starts without errors.
+  Fix any startup errors before reporting done.
+  After cds watch confirms a clean start, commit your work:
+    git add -A && git commit -m "feat: release management"
+</task>
+<format>
+  Complete each task in the order listed in todo.md.
+  Report: "Agent A complete. Service starts cleanly. Files modified: [list]"
+</format>
+<constraints>
+  CDS v6 syntax only. Use cds.service.impl for handler files — no class extension.
+  Use cds.log('release') — no console.log() in srv/.
+  Create srv/release-service.cds as a STANDALONE service:
+    service ReleaseService @(path: '/odata/v4/release') { ... }
+  Do NOT extend BacklogService or SprintService — Release is its own bounded context.
+  Create srv/release-service.js — do NOT modify backlog-service.js or sprint-service.js.
+  Hard-delete of Release is forbidden — archived flag only.
+  Sprint→Release: Sprint gets release_ID FK. Story does NOT get a direct release_ID. (CLAUDE.md AP-8)
+  storiesByRelease joins via Sprint (Sprint.release_ID = releaseId) — NOT a deep $expand from the UI.
+  Emit domain events for every significant state transition — archiveRelease MUST emit ReleaseArchived. (CLAUDE.md Domain Events)
+  Each invariant is a separate named function (e.g. _requireSprintAssignable) — NOT inline logic. (CLAUDE.md AP-6)
+  Release entity must compose the Auditable aspect — do NOT add createdAt inline. (CLAUDE.md AP-5)
+  Releases view (XMLView) must bind to the `release` model declared in manifest.json.
+    Controller: this.getOwnerComponent().getModel("release")
+    View bindings: items="{release>/Releases}"
+  All user-visible strings in XMLViews MUST use i18n keys. (CLAUDE.md AP-2)
+  All formatter logic uses ui/util/Formatters.js — no inline ternary expressions. (CLAUDE.md AP-1)
+  Async OData create: wait for oContext.created() before showing success toast. (CLAUDE.md AP-7)
+  Do NOT modify manifest.json — all 4 data sources are pre-declared.
+  Do not touch Agent B's files (see Integration Contracts in todo.md).
+</constraints>
+<reference>
+  Read CLAUDE.md before starting — especially Architecture Decisions (Bounded Context Service Split),
+  Anti-Patterns, SOLID, DDD, Parallel Agent File Ownership, and Extend Service Pattern.
+  Read specs/feature-enhancement/design.md Feature A section.
+  Read specs/feature-enhancement/todo.md Agent A section.
+</reference>

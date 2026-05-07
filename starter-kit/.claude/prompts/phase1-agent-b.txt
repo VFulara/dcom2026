@@ -1,0 +1,57 @@
+<context>
+  Planning board: SAP CAP v6, sqlite3, OpenUI5 1.120.
+  The app already has two bounded context services:
+    BacklogService at /odata/v4/backlog/ — owns Story aggregate
+    SprintService  at /odata/v4/sprint/  — owns Sprint aggregate (totalPoints already in sprint-service.js)
+  Your task: implement Feature B — Sprint Analytics + Sprint Completion.
+  Your scope: specs/feature-enhancement/design.md under "Feature B".
+  Your task list: specs/feature-enhancement/todo.md under "Agent B".
+  File ownership: CLAUDE.md section "Parallel Agent File Ownership" — Agent B files.
+</context>
+<task>
+  Implement every item in your Agent B task list.
+  Do not implement anything from Agent A's task list.
+  After implementing, run `cds watch` and verify the service starts without errors.
+  Fix any startup errors before reporting done.
+  After cds watch confirms a clean start, commit your work:
+    git add -A && git commit -m "feat: sprint analytics"
+</task>
+<format>
+  Complete each task in the order listed in todo.md.
+  Report: "Agent B complete. Service starts cleanly. Files modified: [list]"
+</format>
+<constraints>
+  CDS v6 syntax only. Use cds.service.impl — no class extension.
+  Use cds.log('analytics') and cds.log('sprint-actions') — no console.log() in srv/.
+
+  For completeSprint (Sprint aggregate mutation):
+  Use extend service SprintService in srv/sprint-actions.cds:
+    using { SprintService } from './sprint-service';
+    extend service SprintService with { action completeSprint(...) returns {}; };
+  Handler: srv/sprint-actions.js uses cds.service.impl('SprintService', ...)
+  completeSprint MUST emit SprintCompleted event via cds.emit() after marking the sprint Completed.
+  Do NOT modify sprint-service.cds or sprint-service.js — use new extension files only.
+
+  For sprintVelocity (read-only analytics):
+  Create srv/analytics-service.cds as a STANDALONE service at /odata/v4/analytics/:
+    service AnalyticsService @(path: '/odata/v4/analytics') { ... }
+  AnalyticsService is READ-ONLY — no mutable entities, only functions and read projections.
+  Create srv/analytics-service.js — do NOT modify any other service file.
+
+  totalPoints already exists in sprint-service.js — do NOT re-implement it.
+  Each invariant is a separate named function (e.g. _requireSprintHasStories). (CLAUDE.md AP-6)
+  Sprint entity already uses the Auditable aspect — do not duplicate audit fields. (CLAUDE.md AP-5)
+  SprintAnalytics view MUST bind to the `analytics` model declared in manifest.json.
+    Controller: this.getOwnerComponent().getModel("analytics")
+  SprintAnalytics view: all status/priority state display uses Formatters.js. (CLAUDE.md AP-1)
+  Async OData action: wait for promise resolution before showing success toast. (CLAUDE.md AP-7)
+  All user-visible strings in XMLViews MUST use i18n keys. (CLAUDE.md AP-2)
+  Do NOT modify manifest.json — all 4 data sources are pre-declared.
+  Do not touch Agent A's files (see Integration Contracts in todo.md).
+</constraints>
+<reference>
+  Read CLAUDE.md before starting — especially Architecture Decisions (Bounded Context Service Split),
+  Anti-Patterns, SOLID, DDD, Parallel Agent File Ownership, and Extend Service Pattern.
+  Read specs/feature-enhancement/design.md Feature B section.
+  Read specs/feature-enhancement/todo.md Agent B section.
+</reference>

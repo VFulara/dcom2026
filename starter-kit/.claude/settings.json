@@ -59,6 +59,7 @@
       "Write(.cdsrc.json)",
       "Write(.gitignore)",
       "Write(.claude/agents/**)",
+      "Write(modern/**)",
       "Bash(npm install)",
       "Bash(npm install *)",
       "Bash(npm test)",
@@ -79,7 +80,8 @@
       "Bash(cp -r * *)",
       "Bash(xcopy *)",
       "Bash(robocopy *)",
-      "Bash(node -e *)"
+      "Bash(node -e *)",
+      "Bash(npx *)"
     ],
     "deny": [
       "Bash(git push*)",

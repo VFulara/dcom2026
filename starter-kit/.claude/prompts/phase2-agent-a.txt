@@ -1,0 +1,45 @@
+<context>
+  Planning board migration: CDS v6 → CDS v9.
+  Your scope: create modern/package.json, modern/db/, modern/srv/ — the backend for the new version.
+  The legacy app (root package.json, srv/, db/) must NOT be modified — it keeps running at port 4004.
+  Design spec: specs/modernisation/design.md — Backend Migration and Package Configuration sections.
+</context>
+<task>
+  Create the modern/ backend directory:
+  1. modern/package.json is pre-created — verify it matches the design spec. Only modify if there is a discrepancy.
+     It must have: @sap/cds@^9, @cap-js/sqlite@^1, devDep @sap/cds-dk@^9, no sqlite3
+     CDS config: { "server": { "port": 4005 }, "requires": { "db": { "kind": "sqlite", "credentials": { "database": ":memory:" } } } }
+     node_modules is already installed — do NOT run npm install unless you modified package.json.
+  2. Copy db/schema.cds to modern/db/schema.cds (entities are unchanged)
+  3. Copy db/data/ to modern/db/data/ (seed data unchanged)
+  4. Migrate ALL srv/*.cds and srv/*.js files to modern/srv/ using CDS v9 class extension syntax:
+       module.exports = class BacklogService extends cds.ApplicationService {
+         async init() { await super.init(); this.on(...); }
+       }
+     Migrate: backlog-service, sprint-service, release-service, analytics-service, sprint-actions
+  5. Change cds.emit(...) to this.emit(...) for domain events in all service files.
+  6. Preserve all Phase 1 features: Release Management, Sprint Analytics handlers
+  7. Run `cds watch` from modern/ — service must start at port 4005 without errors
+  8. Verify GET http://localhost:4005/odata/v4/backlog/Stories responds correctly
+  After cds watch confirms a clean start:
+    git add -A && git commit -m "feat: CDS v9 backend in modern/"
+</task>
+<format>
+  Complete tasks in order. Report:
+  "Backend migration complete. All endpoints verified at port 4005. Files created: [list]"
+</format>
+<constraints>
+  Do NOT modify any root-level files (package.json, srv/, db/, ui/) — those are the legacy app.
+  All new files go under modern/ subdirectory only.
+  The legacy OData paths must be preserved in the modern app:
+    /odata/v4/backlog/, /odata/v4/sprint/, /odata/v4/release/, /odata/v4/analytics/
+  All Phase 1 handlers must be preserved — do not remove Release, Analytics, or Sprint actions.
+  CDS v9 in-memory SQLite: "database": ":memory:" — do NOT use shorthand "db": "sqlite".
+  Use npm install --legacy-peer-deps if peer dependency conflicts occur.
+  Do NOT add @sap/cds-test to modern/package.json — it is not available on public npm.
+  cds.log() — no console.log() in srv/.
+</constraints>
+<reference>
+  Read CLAUDE.md before starting. Read specs/modernisation/design.md Backend Migration section.
+  Read specs/modernisation/requirements.md Breaking Changes section.
+</reference>

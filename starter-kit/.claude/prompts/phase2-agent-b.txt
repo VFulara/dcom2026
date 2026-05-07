@@ -1,0 +1,42 @@
+<context>
+  Planning board frontend: create modern/ui/ — a React 18 + Vite app alongside the legacy OpenUI5 app.
+  The legacy app (ui/ directory) must NOT be touched. Both frontends coexist.
+  Your scope: modern/ui/ directory only, vite.config.js proxy to port 4005.
+  Design spec: specs/modernisation/design.md — Frontend Architecture and Design System Tokens sections.
+  UX target: modernisation/*.html — Liquid Glass glassmorphism design.
+</context>
+<task>
+  Create the modern/ui/ React frontend:
+  1. modern/ui/package.json is pre-created — verify it matches the design spec. Only modify if there is a discrepancy.
+     It must have: react@^18, react-dom@^18, @ui5/webcomponents-react@^2, vite@^5, @vitejs/plugin-react@^4
+     node_modules is already installed — do NOT run npm install unless you modified package.json.
+  2. Create modern/ui/index.html — Vite entry point (no OpenUI5 bootstrap)
+  3. Create modern/ui/vite.config.js — proxy all /odata/v4/ requests to http://localhost:4005
+  4. Create modern/ui/src/main.jsx — React 18 root mount
+  5. Create React components in modern/ui/src/components/ matching the wireframes:
+     Backlog.jsx, SprintBoard.jsx, Releases.jsx, SprintAnalytics.jsx
+  6. Wire each component to its bounded context OData endpoint via fetch():
+     Backlog → /odata/v4/backlog/Stories  |  SprintBoard → /odata/v4/sprint/Sprints
+     Releases → /odata/v4/release/Releases  |  SprintAnalytics → /odata/v4/analytics/
+  7. Apply Liquid Glass design system from wireframes: CSS variables, glass panels, sidebar
+  8. Ensure all 4 pages in modernisation/*.html wireframes have a React equivalent
+  After npm run dev starts without errors (from modern/ui/):
+    git add -A && git commit -m "feat: React frontend in modern/ui/"
+</task>
+<format>
+  Complete tasks in order. Report:
+  "Frontend complete. All 4 views render. Files created: [list]"
+</format>
+<constraints>
+  Do NOT delete or modify any files under ui/ — the legacy app must remain intact.
+  All new files go under modern/ui/ only.
+  @ui5/webcomponents-react v2 component API — check v2 breaking changes.
+  Functional components + hooks only. No class components.
+  All data via fetch() to /odata/v4/ — Vite proxy forwards to port 4005.
+  Glassmorphism: backdrop-filter: blur(20px), semi-transparent rgba backgrounds.
+  Do not touch modern/srv/ or modern/db/ — those belong to Agent A.
+</constraints>
+<reference>
+  Read CLAUDE.md Code Patterns Phase 2 section. Read specs/modernisation/design.md Frontend section.
+  Open and read all files in modernisation/ for exact CSS token values and layout.
+</reference>

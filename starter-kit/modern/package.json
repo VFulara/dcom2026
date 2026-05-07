@@ -1,0 +1,30 @@
+{
+  "name": "planning-board-modern",
+  "version": "0.1.0",
+  "description": "Agile planning board — SAP CAP v9 backend (modern stack)",
+  "engines": { "node": ">=18.x" },
+  "dependencies": {
+    "@sap/cds": "^9",
+    "@cap-js/sqlite": "^1",
+    "express": "^4"
+  },
+  "devDependencies": {
+    "@sap/cds-dk": "^9"
+  },
+  "scripts": {
+    "start": "cds-serve",
+    "watch": "cds watch"
+  },
+  "cds": {
+    "server": { "port": 4005 },
+    "requires": {
+      "db": {
+        "kind": "sqlite",
+        "credentials": { "database": ":memory:" }
+      }
+    },
+    "folders": {
+      "app": ""
+    }
+  }
+}

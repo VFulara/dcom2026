@@ -3,6 +3,9 @@ node_modules/
 *.sqlite
 ui/node_modules/
 ui/dist/
+modern/node_modules/
+modern/ui/node_modules/
+modern/ui/dist/
 worktrees/
 .progress-state
 .progress-report.txt
